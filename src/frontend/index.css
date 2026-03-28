@@ -4,7 +4,7 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-headline: "Inter", ui-sans-serif, system-ui, sans-serif;
-  
+
   --color-primary: var(--c-primary);
   --color-primary-container: var(--c-primary-container);
   --color-secondary: var(--c-secondary);
@@ -38,7 +38,7 @@
     --c-error: #ba1a1a;
     --c-error-container: #ffdad6;
   }
-  
+
   .dark {
     --c-primary: #818cf8;
     --c-primary-container: #4f46e5;
