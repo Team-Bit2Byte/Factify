@@ -17,9 +17,10 @@ from typing import Dict, List
 from urllib.parse import urlparse
 
 from src.ml.algorithms.ai_generation_signals import assess_ai_writing_signals
-from src.ml.algorithms.universal_facts import detect_universal_fact_contradictions, detect_verified_universal_facts
-
-from src.ml.algorithms.universal_facts import detect_universal_fact_contradictions
+from src.ml.algorithms.universal_facts import (
+    detect_universal_fact_contradictions,
+    detect_verified_universal_facts,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = PROJECT_ROOT / "vendor" / "factify_engine" / "data"
@@ -347,6 +348,22 @@ def validate_source(source_name: str) -> tuple[float, str]:
     return score, label
 
 
+def infer_effective_source(source_name: str, headline: str, body: str) -> str:
+    normalized_input = normalize_source_name(source_name or "")
+    if normalized_input and normalized_input not in GENERIC_SOURCE_INPUTS:
+        return source_name
+
+    combined_text = to_lower_copy(f"{headline} {body}")
+    matched_hint = None
+    for hint in SOURCE_HINTS:
+        pattern = rf"(?<!\w){re.escape(hint)}(?!\w)"
+        if re.search(pattern, combined_text):
+            matched_hint = hint
+            break
+
+    return matched_hint or source_name or "Unknown"
+
+
 def find_suspicious_phrases(text: str) -> List[str]:
     normalized = to_lower_copy(text)
     return [phrase for phrase in _load_suspicious_phrases() if phrase in normalized]
@@ -573,12 +590,16 @@ def assess_algorithmic_credibility(headline: str, body: str, source: str, timest
     combined_text = f"{headline} {body}".strip()
     normalized_text = to_lower_copy(combined_text)
     tokens = remove_stop_words(tokenize(combined_text))
+    effective_source = infer_effective_source(source, headline, body)
     factual_hits = count_positive_phrase_hits(normalized_text, FACTUAL_CUES)
     uncertainty_hits = count_phrase_hits(normalized_text, UNCERTAINTY_CUES)
     evidence_hits = count_positive_phrase_hits(normalized_text, EVIDENCE_MARKERS)
     attribution_hits = count_positive_phrase_hits(normalized_text, ATTRIBUTION_MARKERS)
     grounding_hits = count_phrase_hits(normalized_text, GROUNDING_MARKERS)
     verified_fact_hits = len(detect_verified_universal_facts(normalized_text))
+    contradiction_hits = len(detect_universal_fact_contradictions(normalized_text))
+    ai_assessment = assess_ai_writing_signals(headline, body)
+    ai_score = ai_assessment.score
     short_text_penalty = SHORT_TEXT_PENALTY_CRITICAL if len(tokens) < SHORT_TEXT_THRESHOLD_CRITICAL else SHORT_TEXT_PENALTY_WARNING if len(tokens) < SHORT_TEXT_THRESHOLD_WARNING else 0.0
     if factual_hits > 0:
         short_text_penalty = max(0.0, short_text_penalty - min(2.0, factual_hits * 0.75))
@@ -706,13 +727,11 @@ def assess_algorithmic_credibility(headline: str, body: str, source: str, timest
     if risk_penalty > 0.0 or consistency_boost > 0.0:
         explanations.append(f"[Score Calibration] Risk calibration applied (penalty: {risk_penalty:.1f}, boost: {consistency_boost:.1f})")
 
-    bridge_result = _run_cxx_bridge(headline, body, effective_source)
-
     return AlgorithmAssessment(
-        overall_score=round(bridge_result["overall_score"], 2) if bridge_result else round(overall_score, 2),
-        verdict=bridge_result["verdict"] if bridge_result else verdict,
-        module_scores=bridge_result["module_scores"] if bridge_result else module_scores,
-        explanations=bridge_result["explanations"] if bridge_result else explanations,
+        overall_score=round(overall_score, 2),
+        verdict=verdict,
+        module_scores=module_scores,
+        explanations=explanations,
         suspicious_phrases=suspicious_phrases[:5],
         top_negative_terms=top_negative_terms,
         greedy_signals=greedy_signals,
