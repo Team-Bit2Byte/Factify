@@ -32,6 +32,13 @@ import cv2
 import numpy as np
 from PIL import Image
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.ml.algorithms.credibility_engine import assess_algorithmic_credibility
+from src.ml.models.fake_news_predictor import classify_with_algorithm_score
+
 # ── Tesseract (optional — works without it) ───────────────────────────────────
 try:
     import pytesseract
@@ -73,6 +80,8 @@ class ImageTextResult:
     caption: str              = ""
     processing_time_sec: float = 0.0
     raw_ocr_text: str         = ""
+    detection: dict           = field(default_factory=dict)
+    algorithms: dict          = field(default_factory=dict)
 
     def to_text(self) -> str:
         def fmt(lst): return ", ".join(lst) if lst else "None"
@@ -115,10 +124,11 @@ def preprocess_for_ocr(image_path: str) -> np.ndarray:
     if img is None:
         raise FileNotFoundError(f"Cannot open image: {image_path}")
 
-    # 1. Upscale
+    # 1. Upscale with max dimension cap
     h, w = img.shape[:2]
     if max(h, w) < 1500:
-        scale = max(2.0, 1500 / max(h, w))
+        # Cap scale factor to prevent excessive memory usage
+        scale = max(2.0, min(1500 / max(h, w), 4.0))
         img = cv2.resize(img, None, fx=scale, fy=scale,
                          interpolation=cv2.INTER_CUBIC)
 
@@ -336,10 +346,15 @@ def run_ocr(image_path: str,
       'auto'      - runs both, returns the longer result
       'both'      - same as auto
     """
+    import tempfile
+    
     print("\n[OCR] Preprocessing image...")
     preprocessed = preprocess_for_ocr(image_path)
-    tmp = "/tmp/_ocr_prep.png"
-    cv2.imwrite(tmp, preprocessed)
+    
+    # Use temporary file with automatic cleanup
+    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+        tmp = tmp_file.name
+        cv2.imwrite(tmp, preprocessed)
 
     easy_text, easy_count, tess_text = "", 0, ""
     easy_result = {}
@@ -394,6 +409,13 @@ def run_ocr(image_path: str,
     print(f"[OCR] Selected: {used} | "
           f"Final word count: {len(chosen.split())}")
 
+    # Clean up temporary preprocessed file
+    try:
+        import os
+        os.unlink(tmp)
+    except Exception:
+        pass  # Ignore cleanup errors
+
     return {
         "filtered_text":  chosen,
         "easyocr_result": easy_result,
@@ -432,28 +454,55 @@ def run_captioning(image_path: str) -> str:
             "Salesforce/blip-image-captioning-large"
         ).to(device)
 
-    image = Image.open(image_path).convert("RGB")
+    # Use context manager to ensure image is properly closed
+    with Image.open(image_path) as img:
+        image = img.convert("RGB")
 
-    def _gen(prompt=None):
-        if prompt:
-            inputs = _blip_processor(image, prompt,
-                                      return_tensors="pt").to(device)
-        else:
-            inputs = _blip_processor(image, return_tensors="pt").to(device)
-        out = _blip_model.generate(
-            **inputs, max_new_tokens=80, num_beams=5, early_stopping=True
-        )
-        return _blip_processor.decode(out[0], skip_special_tokens=True)
+        def _gen(prompt=None):
+            if prompt:
+                inputs = _blip_processor(image, prompt,
+                                          return_tensors="pt").to(device)
+            else:
+                inputs = _blip_processor(image, return_tensors="pt").to(device)
+            out = _blip_model.generate(
+                **inputs, max_new_tokens=80, num_beams=5, early_stopping=True
+            )
+            return _blip_processor.decode(out[0], skip_special_tokens=True)
 
-    general = _gen()
-    news    = _gen("a news photograph of")
+        general = _gen()
+        news    = _gen("a news photograph of")
 
-    print(f"[CAPTION] General  : {general}")
-    print(f"[CAPTION] News-ctx : {news}")
+        print(f"[CAPTION] General  : {general}")
+        print(f"[CAPTION] News-ctx : {news}")
 
-    # Prefer the news-context caption if it's substantively longer
-    caption = news if len(news) > len(general) * 0.8 else general
-    return caption
+        # Prefer the news-context caption if it's substantively longer
+        caption = news if len(news) > len(general) * 0.8 else general
+        return caption
+
+
+def cleanup_ml_models():
+    """
+    Cleanup function to free memory from ML models.
+    Call this when shutting down or when memory needs to be freed.
+    """
+    global _blip_processor, _blip_model, _easy_reader, _torch
+    
+    if _blip_model is not None:
+        del _blip_model
+        _blip_model = None
+    
+    if _blip_processor is not None:
+        del _blip_processor
+        _blip_processor = None
+    
+    if _easy_reader is not None:
+        del _easy_reader
+        _easy_reader = None
+    
+    if _torch is not None and hasattr(_torch, 'cuda'):
+        _torch.cuda.empty_cache()
+    
+    print("[CLEANUP] ML models freed from memory")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -603,6 +652,15 @@ def process_image(
 
     if not Path(image_path).exists():
         raise FileNotFoundError(f"Image not found: {image_path}")
+    
+    # Validate image format
+    SUPPORTED_FORMATS = ('.jpg', '.jpeg', '.png', '.webp', '.avif', '.bmp', '.tiff', '.tif')
+    if not image_path.lower().endswith(SUPPORTED_FORMATS):
+        raise ValueError(f"Unsupported image format. Supported: {SUPPORTED_FORMATS}")
+    
+    # Validate confidence threshold
+    if not 0.0 <= confidence <= 1.0:
+        raise ValueError(f"Confidence threshold must be between 0.0 and 1.0, got {confidence}")
 
     # ── Decide what to run ────────────────────────────────────────────────────
     if mode == "auto":
@@ -639,6 +697,18 @@ def process_image(
         parts.append(f"[Scene]: {caption.strip()}")
     combined = " ".join(parts)
 
+    algorithms = assess_algorithmic_credibility(
+        parsed.get("headline", "None"),
+        parsed.get("body", combined),
+        parsed.get("source", "None"),
+    ).to_dict()
+    detection = classify_with_algorithm_score(
+        combined,
+        algorithms["overall_score"],
+        parsed.get("suspicious_elements", []),
+        parsed.get("source", "None"),
+    ).to_dict()
+
     return ImageTextResult(
         combined_text       = combined,
         headline            = parsed.get("headline", "None"),
@@ -656,6 +726,8 @@ def process_image(
         caption             = caption,
         processing_time_sec = round(time.time() - t0, 2),
         raw_ocr_text        = ocr_text,
+        detection           = detection,
+        algorithms          = algorithms,
     )
 
 

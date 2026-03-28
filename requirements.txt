@@ -5,6 +5,7 @@
 pillow>=10.0.0          # PIL – image loading & format support
 opencv-python>=4.8.0    # preprocessing (threshold, deskew, denoise)
 numpy>=1.24.0           # array operations
+h5py>=3.11.0            # read the packaged Keras weights archive
 
 # ── OCR engines (install at least one) ───────────────────────────────────────
 pytesseract>=0.3.10     # Python wrapper for Tesseract

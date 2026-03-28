@@ -4,6 +4,7 @@ import cors from 'cors';
 import { spawn, spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,6 +15,8 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const DEFAULT_OCR_ENGINE = process.env.OCR_ENGINE || (process.platform === 'darwin' ? (hasTesseractBinary() ? 'tesseract' : 'easyocr') : 'auto');
 const DEFAULT_OCR_MODE = process.env.OCR_MODE || 'ocr';
+const distDir = path.join(projectRoot, 'dist');
+const hasBuiltFrontend = fsSync.existsSync(distDir);
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -28,7 +31,9 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    // Use basename to strip any directory components from original filename
+    const sanitizedExt = path.extname(path.basename(file.originalname));
+    cb(null, file.fieldname + '-' + uniqueSuffix + sanitizedExt);
   }
 });
 
@@ -51,8 +56,23 @@ const upload = multer({
 });
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+const allowedOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(',') 
+  : ['http://localhost:3000', 'http://localhost:3001'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
+app.use(express.json({ limit: '1mb' })); // Limit JSON payload size
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -66,15 +86,23 @@ app.post('/api/analyze-url', async (req, res) => {
     return res.status(400).json({ error: 'A valid http(s) URL is required' });
   }
 
+  // Validate URL length to prevent DoS
+  if (normalizedUrl.length > 2048) {
+    return res.status(400).json({ error: 'URL too long (max 2048 characters)' });
+  }
+
   const pythonScript = path.join(projectRoot, 'src', 'ml', 'scraper', 'text_scraper.py');
   console.log(`[API] Scraping URL: ${normalizedUrl}`);
 
   try {
-    const result = await runPythonCommand([
-      pythonScript,
-      '--url', normalizedUrl,
-      '--format', 'json',
-    ]);
+    const result = await runPythonCommand(
+      [
+        pythonScript,
+        '--url', normalizedUrl,
+        '--format', 'json',
+      ],
+      req
+    );
 
     console.log(`[API] URL scrape complete: ${normalizedUrl}`);
     res.json({
@@ -87,6 +115,43 @@ app.post('/api/analyze-url', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to scrape URL',
+    });
+  }
+});
+
+app.post('/api/analyze-text', async (req, res) => {
+  const submittedText = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+
+  if (!submittedText) {
+    return res.status(400).json({ error: 'Text content is required' });
+  }
+
+  // Validate text length to prevent DoS (max 100KB)
+  if (submittedText.length > 100000) {
+    return res.status(413).json({ error: 'Text too large (max 100,000 characters)' });
+  }
+
+  const pythonScript = path.join(projectRoot, 'src', 'ml', 'text', 'analyze_text.py');
+
+  try {
+    const result = await runPythonCommand(
+      [
+        pythonScript,
+        '--text', submittedText,
+        '--format', 'json',
+      ],
+      req
+    );
+
+    res.json({
+      success: true,
+      result,
+    });
+  } catch (error) {
+    console.error('[API] Error analyzing text:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to analyze text',
     });
   }
 });
@@ -105,7 +170,7 @@ app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
 
   try {
     // Call Python script with JSON output
-    const result = await runImageScript(pythonScript, imagePath);
+    const result = await runImageScript(pythonScript, imagePath, req);
     
     // Clean up uploaded file
     await fs.unlink(imagePath).catch(err => 
@@ -135,6 +200,11 @@ app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
 // Function to run Python script and capture output
 function normalizeHttpUrl(rawUrl) {
   if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+    return null;
+  }
+
+  // Validate URL length before parsing
+  if (rawUrl.length > 2048) {
     return null;
   }
 
@@ -173,21 +243,25 @@ function summarizePythonError(stderrData) {
   return lines[lines.length - 1] || clean;
 }
 
-function runImageScript(scriptPath, imagePath) {
-  return runPythonCommand([
-    scriptPath,
-    '--image', imagePath,
-    '--format', 'json',
-    '--mode', DEFAULT_OCR_MODE,
-    '--engine', DEFAULT_OCR_ENGINE,
-  ]);
+function runImageScript(scriptPath, imagePath, req) {
+  return runPythonCommand(
+    [
+      scriptPath,
+      '--image', imagePath,
+      '--format', 'json',
+      '--mode', DEFAULT_OCR_MODE,
+      '--engine', DEFAULT_OCR_ENGINE,
+    ],
+    req
+  );
 }
 
-function runPythonCommand(pythonArgs) {
+function runPythonCommand(pythonArgs, req = null) {
   return new Promise((resolve, reject) => {
     const pythonProcess = spawn('python3', [
       ...pythonArgs
     ], {
+      cwd: projectRoot,
       env: {
         ...process.env,
         OBJC_DISABLE_INITIALIZE_FORK_SAFETY: 'YES',
@@ -201,16 +275,72 @@ function runPythonCommand(pythonArgs) {
 
     let stdoutData = '';
     let stderrData = '';
+    let isResolved = false;
+    const MAX_OUTPUT_SIZE = 50 * 1024 * 1024; // 50MB limit
+    const TIMEOUT_MS = 120000; // 2 minutes timeout
+
+    // Set up timeout
+    const timeout = setTimeout(() => {
+      if (!isResolved) {
+        console.error('[Python] Process timeout - killing process');
+        pythonProcess.kill('SIGTERM');
+        setTimeout(() => pythonProcess.kill('SIGKILL'), 5000); // Force kill after 5s
+        cleanup();
+        reject(new Error('Python script execution timed out after 2 minutes'));
+      }
+    }, TIMEOUT_MS);
+
+    // Handle request abort/close
+    const abortHandler = () => {
+      if (!isResolved) {
+        console.log('[Python] Request aborted - killing process');
+        pythonProcess.kill('SIGTERM');
+        setTimeout(() => pythonProcess.kill('SIGKILL'), 1000);
+        cleanup();
+        reject(new Error('Request aborted by client'));
+      }
+    };
+
+    if (req) {
+      req.on('close', abortHandler);
+      req.on('abort', abortHandler);
+    }
+
+    const cleanup = () => {
+      isResolved = true;
+      clearTimeout(timeout);
+      if (req) {
+        req.removeListener('close', abortHandler);
+        req.removeListener('abort', abortHandler);
+      }
+    };
 
     pythonProcess.stdout.on('data', (data) => {
       stdoutData += data.toString();
+      // Check buffer size limit
+      if (stdoutData.length > MAX_OUTPUT_SIZE) {
+        console.error('[Python] Output size limit exceeded - killing process');
+        pythonProcess.kill('SIGTERM');
+        cleanup();
+        reject(new Error('Python script output exceeded size limit (50MB)'));
+      }
     });
 
     pythonProcess.stderr.on('data', (data) => {
       stderrData += data.toString();
+      // Also limit stderr
+      if (stderrData.length > MAX_OUTPUT_SIZE) {
+        console.error('[Python] Error output size limit exceeded - killing process');
+        pythonProcess.kill('SIGTERM');
+        cleanup();
+        reject(new Error('Python script error output exceeded size limit (50MB)'));
+      }
     });
 
     pythonProcess.on('close', (code, signal) => {
+      if (isResolved) return; // Already handled by timeout or abort
+      cleanup();
+
       if (code !== 0) {
         console.error(`[Python] Error output:`, stderrData);
         const exitDetail = signal ? `signal ${signal}` : `code ${code}`;
@@ -239,6 +369,8 @@ function runPythonCommand(pythonArgs) {
     });
 
     pythonProcess.on('error', (error) => {
+      if (isResolved) return;
+      cleanup();
       reject(new Error(`Failed to start Python script: ${error.message}`));
     });
   });
@@ -253,10 +385,28 @@ app.use((error, req, res, next) => {
   });
 });
 
+if (hasBuiltFrontend) {
+  app.use(express.static(distDir));
+
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+}
+
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Factify API Server running on http://localhost:${PORT}`);
   console.log(`📡 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`📝 Text analysis endpoint: http://localhost:${PORT}/api/analyze-text`);
   console.log(`📤 Image upload endpoint: http://localhost:${PORT}/api/analyze-image`);
   console.log(`🔗 URL scrape endpoint: http://localhost:${PORT}/api/analyze-url\n`);
+  if (hasBuiltFrontend) {
+    console.log(`🌐 Frontend served from: http://localhost:${PORT}\n`);
+  }
+}).on('error', (err) => {
+  console.error('❌ Failed to start server:', err);
+  process.exit(1);
 });
