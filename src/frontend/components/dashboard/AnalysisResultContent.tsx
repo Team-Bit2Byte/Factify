@@ -87,6 +87,7 @@ const AnalysisResultContent = React.memo<AnalysisResultContentProps>(({ classNam
   const locations = uniqueItems(analysisData.locations ?? []);
   const suspiciousElements = uniqueItems(analysisData.suspicious_elements ?? []);
   const detection = analysisData.detection;
+  const algorithms = analysisData.algorithms;
   const verdictUi = formatVerdict(detection?.verdict);
   const VerdictIcon = verdictUi.icon;
   const fakeProbability = detection?.fake_probability ?? 0;
@@ -95,6 +96,9 @@ const AnalysisResultContent = React.memo<AnalysisResultContentProps>(({ classNam
   const confidenceScore = detection?.confidence_score ?? 0;
   const findings = detection?.findings?.length ? detection.findings : suspiciousElements;
   const inputType = analysisData.input_type ?? 'image';
+  const algorithmOverall = algorithms?.overall_score ?? 0;
+  const moduleScores = algorithms?.module_scores ?? {};
+  const topModules = Object.entries(moduleScores).sort((a, b) => b[1] - a[1]).slice(0, 4);
 
   return (
     <div className={className}>
@@ -182,6 +186,14 @@ const AnalysisResultContent = React.memo<AnalysisResultContentProps>(({ classNam
             </div>
           </div>
 
+          <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-secondary">Algorithm engine score</p>
+            <p className="mt-2 text-3xl font-black text-on-surface">{algorithmOverall}</p>
+            <p className="mt-1 text-sm text-secondary">
+              Deterministic credibility score blended into the final verdict.
+            </p>
+          </div>
+
           <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-secondary">Key findings</p>
             <div className="mt-4 space-y-3">
@@ -210,6 +222,7 @@ const AnalysisResultContent = React.memo<AnalysisResultContentProps>(({ classNam
             <p><span className="font-semibold text-on-surface">Words:</span> {body.split(/\s+/).filter(Boolean).length}</p>
             <p><span className="font-semibold text-on-surface">Source:</span> {source || 'Not detected'}</p>
             <p><span className="font-semibold text-on-surface">Suspicious flags:</span> {suspiciousElements.length}</p>
+            <p><span className="font-semibold text-on-surface">Source trust band:</span> {algorithms?.source_label || 'unknown'}</p>
           </div>
         </section>
 
@@ -240,7 +253,7 @@ const AnalysisResultContent = React.memo<AnalysisResultContentProps>(({ classNam
         </section>
       </div>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <article className="rounded-3xl border border-outline-variant/10 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-bold text-on-surface">Extracted text</h2>
           <p className="mt-2 text-sm leading-7 text-secondary whitespace-pre-wrap">
@@ -254,6 +267,42 @@ const AnalysisResultContent = React.memo<AnalysisResultContentProps>(({ classNam
             <p><span className="font-semibold text-on-surface">Raw score:</span> {detection?.raw_score ?? 0}</p>
             <p><span className="font-semibold text-on-surface">Confidence band:</span> {confidence}</p>
             <p><span className="font-semibold text-on-surface">Primary label:</span> {detection?.verdict_label || verdictUi.label}</p>
+          </div>
+        </article>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <article className="rounded-3xl border border-outline-variant/10 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-on-surface">Algorithm module scores</h2>
+          <div className="mt-4 space-y-4">
+            {topModules.length ? topModules.map(([name, score]) => (
+              <div key={name}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="font-semibold capitalize text-on-surface">{name.replace(/_/g, ' ')}</span>
+                  <span className="text-secondary">{score}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-surface-container">
+                  <div className="h-full bg-primary" style={{ width: `${score}%` }} />
+                </div>
+              </div>
+            )) : (
+              <p className="text-sm text-secondary">No algorithm score breakdown is available.</p>
+            )}
+          </div>
+        </article>
+
+        <article className="rounded-3xl border border-outline-variant/10 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-on-surface">Algorithm evidence</h2>
+          <div className="mt-4 space-y-3 text-sm text-secondary">
+            <p><span className="font-semibold text-on-surface">Suspicious phrases:</span> {algorithms?.suspicious_phrases?.join(', ') || 'None'}</p>
+            <p><span className="font-semibold text-on-surface">Claim flags:</span> {algorithms?.claim_flags?.join(', ') || 'None'}</p>
+            <p><span className="font-semibold text-on-surface">Top negative terms:</span> {algorithms?.top_negative_terms?.map((item) => item.term).join(', ') || 'None'}</p>
+            <p><span className="font-semibold text-on-surface">Greedy signals:</span> {algorithms?.greedy_signals?.map((item) => item.pattern_name).join(', ') || 'None'}</p>
+          </div>
+          <div className="mt-5 space-y-2">
+            {(algorithms?.explanations || []).slice(0, 4).map((line) => (
+              <p key={line} className="text-sm leading-6 text-secondary">{line}</p>
+            ))}
           </div>
         </article>
       </section>

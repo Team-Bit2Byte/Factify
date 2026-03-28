@@ -20,7 +20,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.ml.models.fake_news_predictor import classify_text
+from src.ml.algorithms.credibility_engine import assess_algorithmic_credibility
+from src.ml.models.fake_news_predictor import classify_with_algorithm_score
 
 _DATE_RE = re.compile(
     r"""
@@ -64,6 +65,7 @@ class TextAnalysisResult:
     input_type: str = "text"
     url: str = ""
     detection: dict = field(default_factory=dict)
+    algorithms: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -95,7 +97,8 @@ def build_result(text: str) -> TextAnalysisResult:
     cleaned = re.sub(r"\s+", " ", text).strip()
     headline = _extract_headline(text)
     suspicious = _detect_suspicious(cleaned)
-    detection = classify_text(cleaned, suspicious, "User provided text").to_dict()
+    algorithms = assess_algorithmic_credibility(headline, cleaned, "User provided text").to_dict()
+    detection = classify_with_algorithm_score(cleaned, algorithms["overall_score"], suspicious, "User provided text").to_dict()
 
     return TextAnalysisResult(
         combined_text=cleaned,
@@ -106,20 +109,46 @@ def build_result(text: str) -> TextAnalysisResult:
         processing_time_sec=round(time.time() - started_at, 2),
         raw_ocr_text=cleaned,
         detection=detection,
+        algorithms=algorithms,
     )
 
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze raw text for fake news signals")
-    parser.add_argument("--text", required=True, help="Text to analyze")
+    parser.add_argument("--text", required=True, help="Text to analyze (max 100,000 characters)")
     parser.add_argument("--format", dest="fmt", choices=["txt", "json"], default="json")
     args = parser.parse_args()
 
-    result = build_result(args.text)
-    if args.fmt == "txt":
-        print(result.body)
-    else:
-        print(json.dumps(result.to_dict(), indent=2))
+    # Validate text length to prevent memory exhaustion
+    if len(args.text) > 100000:
+        error_result = {
+            "error": "Text too large (max 100,000 characters)",
+            "text_length": len(args.text)
+        }
+        print(json.dumps(error_result), file=sys.stderr)
+        sys.exit(1)
+
+    if len(args.text.strip()) < 5:
+        error_result = {
+            "error": "Text too short (minimum 5 characters)",
+            "text_length": len(args.text)
+        }
+        print(json.dumps(error_result), file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        result = build_result(args.text)
+        if args.fmt == "txt":
+            print(result.body)
+        else:
+            print(json.dumps(result.to_dict(), indent=2))
+    except Exception as e:
+        error_result = {
+            "error": f"Analysis failed: {str(e)}",
+            "type": type(e).__name__
+        }
+        print(json.dumps(error_result), file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

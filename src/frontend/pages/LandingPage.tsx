@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   FileText,
   Image,
@@ -30,6 +30,16 @@ export default function LandingPage() {
   const [urlInput, setUrlInput] = useState("");
   const [textInput, setTextInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleFileSelect = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,6 +78,15 @@ export default function LandingPage() {
   }, []);
 
   const handleAnalyze = useCallback(async () => {
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     if (activeTab === "text") {
       const trimmedText = textInput.trim();
       if (!trimmedText) {
@@ -79,7 +98,7 @@ export default function LandingPage() {
       setUploadError(null);
 
       try {
-        const response = await analyzeText(trimmedText);
+        const response = await analyzeText(trimmedText, signal);
 
         if (response.success) {
           setAnalysisResult(response.result);
@@ -88,6 +107,10 @@ export default function LandingPage() {
           throw new Error(response.error || "Text analysis failed");
         }
       } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log("Request was aborted");
+          return;
+        }
         console.error("Text analysis error:", error);
         setUploadError(
           error instanceof Error
@@ -103,7 +126,7 @@ export default function LandingPage() {
 
       try {
         console.log("Uploading image:", selectedFile.name);
-        const response = await analyzeImage(selectedFile);
+        const response = await analyzeImage(selectedFile, signal);
 
         if (response.success) {
           setAnalysisResult(response.result);
@@ -113,6 +136,10 @@ export default function LandingPage() {
           throw new Error(response.error || "Analysis failed");
         }
       } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log("Request was aborted");
+          return;
+        }
         console.error("Upload error:", error);
         setUploadError(
           error instanceof Error
@@ -133,7 +160,7 @@ export default function LandingPage() {
       setUploadError(null);
 
       try {
-        const response = await analyzeUrl(trimmedUrl);
+        const response = await analyzeUrl(trimmedUrl, signal);
 
         if (response.success) {
           setAnalysisResult(response.result);
@@ -142,6 +169,10 @@ export default function LandingPage() {
           throw new Error(response.error || "URL analysis failed");
         }
       } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          console.log("Request was aborted");
+          return;
+        }
         console.error("URL analysis error:", error);
         setUploadError(
           error instanceof Error

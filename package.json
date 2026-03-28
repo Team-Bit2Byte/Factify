@@ -8,9 +8,11 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "dev:server": "node src/backend/index.js",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
+    "start": "node src/backend/index.js",
+    "build:bridge": "./scripts/build_credibility_bridge.sh",
     "build": "vite build",
     "preview": "vite preview",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist build",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

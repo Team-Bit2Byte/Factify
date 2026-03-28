@@ -228,3 +228,48 @@ def classify_text(text: str, suspicious_elements: List[str] | None = None, sourc
         summary=summary,
         findings=unique_findings[:4],
     )
+
+
+def classify_with_algorithm_score(
+    text: str,
+    algorithm_score: float,
+    suspicious_elements: List[str] | None = None,
+    source: str = "",
+) -> DetectionResult:
+    base = classify_text(text, suspicious_elements, source)
+    algorithm_fake_probability = int(round(100 - max(0.0, min(100.0, algorithm_score))))
+    blended_fake_probability = int(round((base.fake_probability * 0.55) + (algorithm_fake_probability * 0.45)))
+    blended_original_probability = 100 - blended_fake_probability
+    confidence_score = int(round((base.confidence_score * 0.6) + (abs(algorithm_score - 50.0) * 0.8)))
+
+    if confidence_score >= 70:
+        confidence = "high"
+    elif confidence_score >= 40:
+        confidence = "medium"
+    else:
+        confidence = "low"
+
+    if blended_fake_probability >= 67:
+        verdict = "likely_fake_false"
+        verdict_label = "Likely Fake / False"
+        summary = "The model and deterministic credibility checks both point toward a high-risk article."
+    elif blended_fake_probability <= 33:
+        verdict = "likely_original"
+        verdict_label = "Likely Original"
+        summary = "The model and deterministic credibility checks both lean toward legitimate reporting."
+    else:
+        verdict = "unverified"
+        verdict_label = "Unverified"
+        summary = "The model and deterministic checks disagree or remain too close to call."
+
+    return DetectionResult(
+        verdict=verdict,
+        verdict_label=verdict_label,
+        raw_score=base.raw_score,
+        fake_probability=blended_fake_probability,
+        original_probability=blended_original_probability,
+        confidence=confidence,
+        confidence_score=min(confidence_score, 100),
+        summary=summary,
+        findings=base.findings,
+    )

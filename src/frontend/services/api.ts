@@ -16,6 +16,25 @@ export interface DetectionResult {
   findings: string[];
 }
 
+export interface AlgorithmAssessment {
+  overall_score: number;
+  verdict: 'likely_original' | 'unverified' | 'likely_fake_false';
+  module_scores: Record<string, number>;
+  explanations: string[];
+  suspicious_phrases: string[];
+  top_negative_terms: Array<{
+    term: string;
+    frequency: number;
+    suspicion_level: number;
+  }>;
+  greedy_signals: Array<{
+    pattern_name: string;
+    severity: number;
+  }>;
+  claim_flags: string[];
+  source_label: string;
+}
+
 export interface AnalysisResult {
   combined_text: string;
   headline: string;
@@ -36,6 +55,7 @@ export interface AnalysisResult {
   input_type?: 'text' | 'image' | 'url';
   url?: string;
   detection: DetectionResult;
+  algorithms: AlgorithmAssessment;
 }
 
 export interface AnalyzeImageResponse {
@@ -61,13 +81,14 @@ export interface AnalyzeTextResponse {
 /**
  * Upload and analyze an image file
  */
-export async function analyzeImage(file: File): Promise<AnalyzeImageResponse> {
+export async function analyzeImage(file: File, signal?: AbortSignal): Promise<AnalyzeImageResponse> {
   const formData = new FormData();
   formData.append('image', file);
 
   const response = await fetch(`${API_BASE_URL}/api/analyze-image`, {
     method: 'POST',
     body: formData,
+    signal,
   });
 
   if (!response.ok) {
@@ -78,13 +99,14 @@ export async function analyzeImage(file: File): Promise<AnalyzeImageResponse> {
   return response.json();
 }
 
-export async function analyzeUrl(url: string): Promise<AnalyzeUrlResponse> {
+export async function analyzeUrl(url: string, signal?: AbortSignal): Promise<AnalyzeUrlResponse> {
   const response = await fetch(`${API_BASE_URL}/api/analyze-url`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ url }),
+    signal,
   });
 
   if (!response.ok) {
@@ -95,13 +117,14 @@ export async function analyzeUrl(url: string): Promise<AnalyzeUrlResponse> {
   return response.json();
 }
 
-export async function analyzeText(text: string): Promise<AnalyzeTextResponse> {
+export async function analyzeText(text: string, signal?: AbortSignal): Promise<AnalyzeTextResponse> {
   const response = await fetch(`${API_BASE_URL}/api/analyze-text`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ text }),
+    signal,
   });
 
   if (!response.ok) {

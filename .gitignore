@@ -55,6 +55,8 @@ extracted_texts/
 *.avif.json
 *_ocr.json
 *_ocr.txt
+build/factify_credibility_bridge
+/tmp/
 
 # Local one-off scripts / stale experiments
 text_scraper.py
