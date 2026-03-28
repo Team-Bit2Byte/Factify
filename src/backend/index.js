@@ -56,17 +56,50 @@ const upload = multer({
 });
 
 // Middleware
-const allowedOrigins = process.env.CORS_ORIGINS 
-  ? process.env.CORS_ORIGINS.split(',') 
-  : ['http://localhost:3000', 'http://localhost:3001'];
+const explicitAllowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean)
+  : [];
+
+function isLocalDevOrigin(origin) {
+  try {
+    const parsed = new URL(origin);
+    return ['localhost', '127.0.0.1', '0.0.0.0', '[::1]', '::1'].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin || origin === 'null') {
+    return true;
+  }
+
+  if (explicitAllowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  if (isLocalDevOrigin(origin)) {
+    return true;
+  }
+
+  if (hasBuiltFrontend) {
+    try {
+      const parsed = new URL(origin);
+      return ['localhost', '127.0.0.1', '0.0.0.0', '[::1]', '::1'].includes(parsed.hostname);
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(null, false);
     }
   },
   credentials: true
@@ -290,7 +323,7 @@ function runPythonCommand(pythonArgs, req = null) {
       }
     }, TIMEOUT_MS);
 
-    // Handle request abort/close
+    // Handle real client disconnects without treating normal request closure as an abort.
     const abortHandler = () => {
       if (!isResolved) {
         console.log('[Python] Request aborted - killing process');
@@ -301,17 +334,23 @@ function runPythonCommand(pythonArgs, req = null) {
       }
     };
 
+    const responseCloseHandler = () => {
+      if (!isResolved && req?.aborted) {
+        abortHandler();
+      }
+    };
+
     if (req) {
-      req.on('close', abortHandler);
-      req.on('abort', abortHandler);
+      req.once('aborted', abortHandler);
+      req.res?.once('close', responseCloseHandler);
     }
 
     const cleanup = () => {
       isResolved = true;
       clearTimeout(timeout);
       if (req) {
-        req.removeListener('close', abortHandler);
-        req.removeListener('abort', abortHandler);
+        req.removeListener('aborted', abortHandler);
+        req.res?.removeListener('close', responseCloseHandler);
       }
     };
 

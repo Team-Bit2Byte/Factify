@@ -118,6 +118,9 @@ export default function LandingPage() {
             : "Failed to analyze text. Please make sure the backend server is running.",
         );
       } finally {
+        if (abortControllerRef.current?.signal === signal) {
+          abortControllerRef.current = null;
+        }
         setIsUploading(false);
       }
     } else if (activeTab === "image" && selectedFile) {
@@ -147,6 +150,9 @@ export default function LandingPage() {
             : "Failed to analyze image. Please make sure the backend server is running.",
         );
       } finally {
+        if (abortControllerRef.current?.signal === signal) {
+          abortControllerRef.current = null;
+        }
         setIsUploading(false);
       }
     } else if (activeTab === "url") {
@@ -180,6 +186,9 @@ export default function LandingPage() {
             : "Failed to analyze URL. Please make sure the backend server is running.",
         );
       } finally {
+        if (abortControllerRef.current?.signal === signal) {
+          abortControllerRef.current = null;
+        }
         setIsUploading(false);
       }
     }
