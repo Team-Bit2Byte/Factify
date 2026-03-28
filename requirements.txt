@@ -1,0 +1,18 @@
+# OCR Extractor — Python dependencies
+# Install with:  pip install -r requirements.txt
+
+# ── Core image processing ─────────────────────────────────────────────────────
+pillow>=10.0.0          # PIL – image loading & format support
+opencv-python>=4.8.0    # preprocessing (threshold, deskew, denoise)
+numpy>=1.24.0           # array operations
+
+# ── OCR engines (install at least one) ───────────────────────────────────────
+pytesseract>=0.3.10     # Python wrapper for Tesseract
+                        # ALSO requires system Tesseract binary:
+                        #   Linux : sudo apt-get install tesseract-ocr
+                        #   macOS : brew install tesseract
+                        #   Windows: https://github.com/UB-Mannheim/tesseract/wiki
+
+easyocr>=1.7.0          # Deep-learning OCR (no extra system binary needed)
+torch>=2.0.0            # Required by EasyOCR
+torchvision>=0.15.0     # Required by EasyOCR
