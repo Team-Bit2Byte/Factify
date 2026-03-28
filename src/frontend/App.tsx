@@ -13,7 +13,7 @@ import DashboardPage from "./pages/DashboardPage";
 export default function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-white dark:bg-slate-900 text-black dark:text-white">
+      <div className="min-h-screen overflow-x-hidden bg-white dark:bg-slate-900 text-black dark:text-white">
         <Navbar />
         <Routes>
           <Route path="/" element={<LandingPage />} />

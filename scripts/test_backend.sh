@@ -31,6 +31,8 @@ try:
     import torch
     import transformers
     import pytesseract
+    import trafilatura
+    import curl_cffi
     print('✅ All Python dependencies installed')
 except ImportError as e:
     print(f'❌ Missing Python dependency: {e}')
@@ -52,7 +54,7 @@ echo "✅ Node modules installed"
 # Check required files
 echo ""
 echo "Checking required files..."
-FILES=("src/backend/index.js" "src/ml/ocr/test_image_to_text.py" "src/frontend/services/api.ts" "src/frontend/pages/LandingPage.tsx")
+FILES=("src/backend/index.js" "src/ml/ocr/test_image_to_text.py" "src/ml/scraper/text_scraper.py" "src/frontend/services/api.ts" "src/frontend/pages/LandingPage.tsx")
 for file in "${FILES[@]}"; do
     if [ -f "$file" ]; then
         echo "✅ $file exists"

@@ -1,9 +1,9 @@
 import React from 'react';
 import AnalysisResultContent from './AnalysisResultContent';
-import type { ImageAnalysisResult } from '../../services/api';
+import type { AnalysisResult } from '../../services/api';
 
 interface AnalysisReportProps {
-  analysisData?: ImageAnalysisResult | null;
+  analysisData?: AnalysisResult | null;
 }
 
 const AnalysisReport = React.memo<AnalysisReportProps>(({ analysisData }) => {
