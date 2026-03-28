@@ -59,6 +59,12 @@
   body {
     @apply bg-surface text-on-surface font-sans;
   }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
 }
 
 @layer components {

@@ -23,6 +23,7 @@ import sys
 import json
 import time
 import argparse
+import shutil
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional
@@ -38,7 +39,7 @@ try:
     # On Windows, uncomment and set the path if needed:
     # if sys.platform == "win32":
     #     pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    TESSERACT_OK = True
+    TESSERACT_OK = shutil.which("tesseract") is not None
 except ImportError:
     TESSERACT_OK = False
 
@@ -315,7 +316,7 @@ def _ocr_tesseract(preprocessed: np.ndarray) -> str:
     Tries PSM 3 first, falls back to PSM 6 if output is too short.
     """
     if not TESSERACT_OK:
-        raise RuntimeError("pytesseract not installed or tesseract binary missing.")
+        raise RuntimeError("Tesseract OCR is not installed or the 'tesseract' binary is not in PATH.")
     pil  = Image.fromarray(preprocessed)
     text = pytesseract.image_to_string(pil, config="--oem 3 --psm 3")
     if len(text.strip()) < 20:
@@ -346,6 +347,19 @@ def run_ocr(image_path: str,
     use_easy = engine in ("easyocr", "auto", "both")
     use_tess = engine in ("tesseract", "auto", "both") and TESSERACT_OK
 
+    if engine == "tesseract" and not TESSERACT_OK:
+        if use_easy or _easyocr is not None:
+            print("[OCR] Tesseract binary not found. Falling back to EasyOCR...")
+            use_easy = True
+        else:
+            raise RuntimeError(
+                "Tesseract OCR is not installed or the 'tesseract' binary is not in PATH. "
+                "Install Tesseract or use --engine easyocr."
+            )
+
+    if engine in ("auto", "both") and not TESSERACT_OK:
+        print("[OCR] Tesseract binary not found. Skipping Tesseract and continuing without it.")
+
     if use_easy:
         print("[OCR] Running EasyOCR...")
         easy_result, easy_count = _ocr_easyocr(
@@ -359,6 +373,11 @@ def run_ocr(image_path: str,
         print("[OCR] Running Tesseract...")
         tess_text = _ocr_tesseract(preprocessed).strip()
         print(f"[OCR] Tesseract -> {len(tess_text.split())} words")
+
+    if not easy_text and not tess_text:
+        raise RuntimeError(
+            "No OCR engine produced output. Install the Tesseract binary or configure EasyOCR."
+        )
 
     # ── Select best result ────────────────────────────────────────────────────
     if use_easy and use_tess:

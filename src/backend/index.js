@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import cors from 'cors';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
@@ -12,7 +12,7 @@ const projectRoot = path.join(__dirname, '..', '..');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DEFAULT_OCR_ENGINE = process.env.OCR_ENGINE || (process.platform === 'darwin' ? 'tesseract' : 'auto');
+const DEFAULT_OCR_ENGINE = process.env.OCR_ENGINE || (process.platform === 'darwin' ? (hasTesseractBinary() ? 'tesseract' : 'easyocr') : 'auto');
 const DEFAULT_OCR_MODE = process.env.OCR_MODE || 'ocr';
 
 // Configure multer for file uploads
@@ -59,6 +59,38 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Factify API server is running' });
 });
 
+app.post('/api/analyze-url', async (req, res) => {
+  const normalizedUrl = normalizeHttpUrl(req.body?.url);
+
+  if (!normalizedUrl) {
+    return res.status(400).json({ error: 'A valid http(s) URL is required' });
+  }
+
+  const pythonScript = path.join(projectRoot, 'src', 'ml', 'scraper', 'text_scraper.py');
+  console.log(`[API] Scraping URL: ${normalizedUrl}`);
+
+  try {
+    const result = await runPythonCommand([
+      pythonScript,
+      '--url', normalizedUrl,
+      '--format', 'json',
+    ]);
+
+    console.log(`[API] URL scrape complete: ${normalizedUrl}`);
+    res.json({
+      success: true,
+      url: normalizedUrl,
+      result,
+    });
+  } catch (error) {
+    console.error('[API] Error scraping URL:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to scrape URL',
+    });
+  }
+});
+
 // Image analysis endpoint
 app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
   if (!req.file) {
@@ -73,7 +105,7 @@ app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
 
   try {
     // Call Python script with JSON output
-    const result = await runPythonScript(pythonScript, imagePath);
+    const result = await runImageScript(pythonScript, imagePath);
     
     // Clean up uploaded file
     await fs.unlink(imagePath).catch(err => 
@@ -101,16 +133,58 @@ app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
 });
 
 // Function to run Python script and capture output
-function runPythonScript(scriptPath, imagePath) {
-  return new Promise((resolve, reject) => {
-    const pythonArgs = [
-      scriptPath,
-      '--image', imagePath,
-      '--format', 'json',
-      '--mode', DEFAULT_OCR_MODE,
-      '--engine', DEFAULT_OCR_ENGINE,
-    ];
+function normalizeHttpUrl(rawUrl) {
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+    return null;
+  }
 
+  try {
+    const normalized = new URL(rawUrl.trim());
+    if (!['http:', 'https:'].includes(normalized.protocol)) {
+      return null;
+    }
+    return normalized.toString();
+  } catch {
+    return null;
+  }
+}
+
+function hasTesseractBinary() {
+  const result = spawnSync('tesseract', ['--version'], { stdio: 'ignore' });
+  return result.status === 0;
+}
+
+function stripAnsi(value) {
+  return value.replace(/\u001b\[[0-9;]*m/g, '');
+}
+
+function summarizePythonError(stderrData) {
+  const clean = stripAnsi(stderrData || '').trim();
+
+  if (!clean) {
+    return 'Python script failed without error output.';
+  }
+
+  if (clean.includes("Tesseract OCR is not installed") || clean.includes("TesseractNotFoundError")) {
+    return "Tesseract OCR is not installed or not available in PATH. Install it, or set OCR_ENGINE=easyocr before starting the backend.";
+  }
+
+  const lines = clean.split('\n').map((line) => line.trim()).filter(Boolean);
+  return lines[lines.length - 1] || clean;
+}
+
+function runImageScript(scriptPath, imagePath) {
+  return runPythonCommand([
+    scriptPath,
+    '--image', imagePath,
+    '--format', 'json',
+    '--mode', DEFAULT_OCR_MODE,
+    '--engine', DEFAULT_OCR_ENGINE,
+  ]);
+}
+
+function runPythonCommand(pythonArgs) {
+  return new Promise((resolve, reject) => {
     const pythonProcess = spawn('python3', [
       ...pythonArgs
     ], {
@@ -140,7 +214,8 @@ function runPythonScript(scriptPath, imagePath) {
       if (code !== 0) {
         console.error(`[Python] Error output:`, stderrData);
         const exitDetail = signal ? `signal ${signal}` : `code ${code}`;
-        return reject(new Error(`Python script failed with ${exitDetail}: ${stderrData}`));
+        const summary = summarizePythonError(stderrData);
+        return reject(new Error(`Python script failed with ${exitDetail}: ${summary}`));
       }
 
       try {
@@ -182,5 +257,6 @@ app.use((error, req, res, next) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Factify API Server running on http://localhost:${PORT}`);
   console.log(`📡 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`📤 Upload endpoint: http://localhost:${PORT}/api/analyze-image\n`);
+  console.log(`📤 Image upload endpoint: http://localhost:${PORT}/api/analyze-image`);
+  console.log(`🔗 URL scrape endpoint: http://localhost:${PORT}/api/analyze-url\n`);
 });

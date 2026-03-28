@@ -4,7 +4,7 @@
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001';
 
-export interface ImageAnalysisResult {
+export interface AnalysisResult {
   combined_text: string;
   headline: string;
   body: string;
@@ -21,12 +21,21 @@ export interface ImageAnalysisResult {
   caption: string;
   processing_time_sec: number;
   raw_ocr_text: string;
+  input_type?: 'image' | 'url';
+  url?: string;
 }
 
 export interface AnalyzeImageResponse {
   success: boolean;
   filename: string;
-  result: ImageAnalysisResult;
+  result: AnalysisResult;
+  error?: string;
+}
+
+export interface AnalyzeUrlResponse {
+  success: boolean;
+  url: string;
+  result: AnalysisResult;
   error?: string;
 }
 
@@ -40,6 +49,23 @@ export async function analyzeImage(file: File): Promise<AnalyzeImageResponse> {
   const response = await fetch(`${API_BASE_URL}/api/analyze-image`, {
     method: 'POST',
     body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function analyzeUrl(url: string): Promise<AnalyzeUrlResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/analyze-url`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ url }),
   });
 
   if (!response.ok) {
