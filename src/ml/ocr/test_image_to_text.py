@@ -27,39 +27,17 @@ from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional
 
-# ── Auto-install ──────────────────────────────────────────────────────────────
-def _install(pip_name, import_name=None):
-    import subprocess
-    try:
-        __import__(import_name or pip_name)
-    except ImportError:
-        print(f"[SETUP] Installing {pip_name}...")
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", pip_name, "-q"]
-        )
-
-_install("opencv-python", "cv2")
-_install("easyocr")
-_install("Pillow", "PIL")
-_install("torch")
-_install("transformers")
-_install("numpy")
-
 import cv2
 import numpy as np
-import torch
-import easyocr
 from PIL import Image
-from transformers import BlipProcessor, BlipForConditionalGeneration
 
 # ── Tesseract (optional — works without it) ───────────────────────────────────
 try:
     import pytesseract
-    # On Linux/Mac tesseract is on PATH; override only if on Windows
-    if sys.platform == "win32":
-        pytesseract.pytesseract.tesseract_cmd = (
-            r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-        )
+    # Tesseract is auto-detected from system PATH on Linux/macOS
+    # On Windows, uncomment and set the path if needed:
+    # if sys.platform == "win32":
+    #     pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     TESSERACT_OK = True
 except ImportError:
     TESSERACT_OK = False
@@ -226,6 +204,35 @@ def detect_image_type(image_path: str) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 
 _easy_reader = None   # singleton
+_torch = None
+_easyocr = None
+_blip_processor_cls = None
+_blip_model_cls = None
+
+
+def _load_torch():
+    global _torch
+    if _torch is None:
+        import torch
+        _torch = torch
+    return _torch
+
+
+def _load_easyocr():
+    global _easyocr
+    if _easyocr is None:
+        import easyocr
+        _easyocr = easyocr
+    return _easyocr
+
+
+def _load_blip_modules():
+    global _blip_processor_cls, _blip_model_cls
+    if _blip_processor_cls is None or _blip_model_cls is None:
+        from transformers import BlipProcessor, BlipForConditionalGeneration
+        _blip_processor_cls = BlipProcessor
+        _blip_model_cls = BlipForConditionalGeneration
+    return _blip_processor_cls, _blip_model_cls
 
 
 def _ocr_easyocr(image_path: str,
@@ -238,6 +245,8 @@ def _ocr_easyocr(image_path: str,
     """
     global _easy_reader
     if _easy_reader is None:
+        easyocr = _load_easyocr()
+        torch = _load_torch()
         _easy_reader = easyocr.Reader(
             ["en"],
             gpu=torch.cuda.is_available(),
@@ -392,6 +401,8 @@ def run_captioning(image_path: str) -> str:
 
     print("\n[CAPTION] Loading BLIP-large "
           "(first run ~1 GB download, cached after)...")
+    torch = _load_torch()
+    BlipProcessor, BlipForConditionalGeneration = _load_blip_modules()
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     if _blip_model is None:

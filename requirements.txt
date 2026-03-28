@@ -16,3 +16,6 @@ pytesseract>=0.3.10     # Python wrapper for Tesseract
 easyocr>=1.7.0          # Deep-learning OCR (no extra system binary needed)
 torch>=2.0.0            # Required by EasyOCR
 torchvision>=0.15.0     # Required by EasyOCR
+
+trafilatura>=1.6.0      # Main text extraction, removes ads/boilerplate
+curl-cffi>=0.6.0        # Advanced scraper to bypass cloudflare/bot protections
