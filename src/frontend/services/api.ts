@@ -35,6 +35,24 @@ export interface AlgorithmAssessment {
   source_label: string;
 }
 
+export interface TweetModelAssessment {
+  enabled: boolean;
+  model_name: string;
+  verdict: 'likely_original' | 'unverified' | 'likely_fake_false';
+  verdict_label: string;
+  raw_probability: number;
+  fake_probability: number;
+  original_probability: number;
+  confidence: 'low' | 'medium' | 'high';
+  confidence_score: number;
+  threshold_used: number;
+  feature_count: number;
+  derived_feature_count: number;
+  coverage_ratio: number;
+  summary: string;
+  notes: string[];
+}
+
 export interface AnalysisResult {
   combined_text: string;
   headline: string;
@@ -56,6 +74,7 @@ export interface AnalysisResult {
   url?: string;
   detection: DetectionResult;
   algorithms: AlgorithmAssessment;
+  tweet_model?: TweetModelAssessment;
 }
 
 export interface AnalyzeImageResponse {
