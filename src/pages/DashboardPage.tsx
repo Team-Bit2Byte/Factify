@@ -20,11 +20,17 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-lg font-bold text-sm hover:bg-surface-variant transition-colors">
+            <button 
+              onClick={() => alert('Share dialog coming soon!')}
+              className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-lg font-bold text-sm hover:bg-surface-variant transition-colors"
+            >
               <Share className="w-4 h-4" />
               Share
             </button>
-            <button className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-lg font-bold text-sm hover:bg-surface-variant transition-colors">
+            <button 
+              onClick={() => alert('PDF export started!')}
+              className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-lg font-bold text-sm hover:bg-surface-variant transition-colors"
+            >
               <Download className="w-4 h-4" />
               Export PDF
             </button>
@@ -185,7 +191,10 @@ export default function DashboardPage() {
         <section className="mt-12">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-black tracking-tight">Visual Forensics</h2>
-            <button className="text-primary font-bold text-sm flex items-center gap-1 hover:underline">
+            <button 
+              onClick={() => alert('Full metadata panel coming soon!')}
+              className="text-primary font-bold text-sm flex items-center gap-1 hover:underline"
+            >
               View Full Metadata <ArrowRight className="w-3 h-3" />
             </button>
           </div>
