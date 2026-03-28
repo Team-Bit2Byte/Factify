@@ -17,11 +17,17 @@ export function AnalysisHeader() {
         </p>
       </div>
       <div className="flex gap-3">
-        <button className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-lg font-bold text-sm hover:bg-surface-container-high transition-colors">
+        <button 
+          onClick={() => alert('Share dialog coming soon!')}
+          className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-lg font-bold text-sm hover:bg-surface-container-high transition-colors"
+        >
           <Share2 className="w-4 h-4" />
           Share
         </button>
-        <button className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-lg font-bold text-sm hover:bg-surface-container-high transition-colors">
+        <button 
+          onClick={() => alert('PDF export started!')}
+          className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-lg font-bold text-sm hover:bg-surface-container-high transition-colors"
+        >
           <Download className="w-4 h-4" />
           Export PDF
         </button>
