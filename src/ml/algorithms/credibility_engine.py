@@ -19,6 +19,8 @@ from urllib.parse import urlparse
 from src.ml.algorithms.ai_generation_signals import assess_ai_writing_signals
 from src.ml.algorithms.universal_facts import detect_universal_fact_contradictions, detect_verified_universal_facts
 
+from src.ml.algorithms.universal_facts import detect_universal_fact_contradictions
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = PROJECT_ROOT / "vendor" / "factify_engine" / "data"
 SOURCE_FILE = DATA_DIR / "sources.csv"
@@ -345,28 +347,6 @@ def validate_source(source_name: str) -> tuple[float, str]:
     return score, label
 
 
-def infer_source_from_text(headline: str, body: str) -> str:
-    normalized_text = normalize_source_name(f"{headline} {body}")
-    if not normalized_text:
-        return ""
-
-    bounded_text = f" {normalized_text} "
-    sources = _load_sources()
-
-    for hint in SOURCE_HINTS:
-        normalized_hint = normalize_source_name(hint)
-        if normalized_hint and f" {normalized_hint} " in bounded_text:
-            return normalized_hint
-
-    best_match = ""
-    best_length = 0
-    for candidate in sources:
-        if candidate and f" {candidate} " in bounded_text and len(candidate) > best_length:
-            best_match = candidate
-            best_length = len(candidate)
-    return best_match
-
-
 def find_suspicious_phrases(text: str) -> List[str]:
     normalized = to_lower_copy(text)
     return [phrase for phrase in _load_suspicious_phrases() if phrase in normalized]
@@ -534,8 +514,6 @@ def assess_claim_verifiability(headline: str, body: str) -> tuple[float, List[st
     has_quotes = '"' in headline or '"' in body or bool(re.search(r"(?<![A-Za-z])'(?![A-Za-z])", headline + " " + body))
     weak_support = evidence_hits == 0 and attribution_hits == 0 and grounding_hits < 2
     has_grounded_specificity = grounding_hits >= 2 and (evidence_hits > 0 or attribution_hits > 0 or numeric_claims > 0)
-    contradiction_flags = detect_universal_fact_contradictions(text)
-    verified_fact_hits = detect_verified_universal_facts(text)
 
     score = 50.0
     score += min(25.0, evidence_hits * 6.0)
@@ -588,11 +566,6 @@ def assess_claim_verifiability(headline: str, body: str) -> tuple[float, List[st
     if extraordinary_hits > 0 and (evidence_hits == 0 or uncertainty_hits > 0):
         score -= min(18.0, extraordinary_hits * 9.0)
         flags.append("Extraordinary claim lacks strong verification")
-    if contradiction_flags:
-        score -= min(45.0, 26.0 + (len(contradiction_flags) - 1) * 10.0)
-        flags.extend(contradiction_flags)
-    if verified_fact_hits:
-        score += min(18.0, 8.0 + len(verified_fact_hits) * 5.0)
     return clamp_score(score), flags
 
 
@@ -600,11 +573,6 @@ def assess_algorithmic_credibility(headline: str, body: str, source: str, timest
     combined_text = f"{headline} {body}".strip()
     normalized_text = to_lower_copy(combined_text)
     tokens = remove_stop_words(tokenize(combined_text))
-    effective_source = source
-    if normalize_source_name(source or "") in GENERIC_SOURCE_INPUTS:
-        inferred_source = infer_source_from_text(headline, body)
-        if inferred_source:
-            effective_source = inferred_source
     factual_hits = count_positive_phrase_hits(normalized_text, FACTUAL_CUES)
     uncertainty_hits = count_phrase_hits(normalized_text, UNCERTAINTY_CUES)
     evidence_hits = count_positive_phrase_hits(normalized_text, EVIDENCE_MARKERS)
@@ -654,8 +622,8 @@ def assess_algorithmic_credibility(headline: str, body: str, source: str, timest
             timestamp = datetime.fromisoformat(timestamp_iso.replace("Z", "+00:00")).astimezone(timezone.utc)
         except ValueError:
             pass
-    temporal_source = effective_source if normalize_source_name(effective_source or "") not in GENERIC_SOURCE_INPUTS else "generic"
-    temporal_spike = analyze_temporal(temporal_source, len(tokens), timestamp)
+    temporal_spike = analyze_temporal(source or "unknown", len(tokens), timestamp)
+    temporal_score = clamp_score(BASE_SCORE - temporal_spike)
     greedy_manipulation, greedy_signals = detect_greedy_signals(headline, body)
     temporal_score = clamp_score(
         (55.0 if source_label == "neutral" else 62.0)
@@ -668,8 +636,6 @@ def assess_algorithmic_credibility(headline: str, body: str, source: str, timest
         - greedy_manipulation
     )
     claim_score, claim_flags = assess_claim_verifiability(headline, body)
-    ai_assessment = assess_ai_writing_signals(headline, body)
-    ai_score = ai_assessment.score
 
     low_risk_structure = not suspicious_phrases and kmp_matches == 0 and rk_hits == 0 and greedy_manipulation < 15.0 and uncertainty_hits <= 1 and frequency_suspicion < SUSPICION_THRESHOLD
     high_quality_article = source_score >= HIGH_SOURCE_THRESHOLD and claim_score >= 60.0 and factual_hits >= 1
@@ -689,19 +655,15 @@ def assess_algorithmic_credibility(headline: str, body: str, source: str, timest
         risk_penalty += (LOW_CLAIM_VERIFIABILITY_THRESHOLD - claim_score) * (0.15 if low_risk_structure else RISK_PENALTY_CLAIM_MULTIPLIER)
     if source_score < LOW_SOURCE_CREDIBILITY_THRESHOLD and claim_score < LOW_CLAIM_VERIFIABILITY_THRESHOLD:
         risk_penalty += RISK_PENALTY_COMBINED_LOW
-    if ai_score < 42.0 and source_score <= MEDIUM_SOURCE_CREDIBILITY_THRESHOLD and claim_score < 70.0:
-        risk_penalty += min(8.0, (42.0 - ai_score) * 0.28)
 
     consistency_boost = 0.0
-    if high_quality_article and low_risk_structure:
+    if high_quality_article and low_risk_structure and contradiction_hits == 0:
         consistency_boost += CONSISTENCY_BOOST_FACTUAL
     if claim_score >= 70.0:
         consistency_boost += CONSISTENCY_BOOST_HIGH_CLAIM
-    if source_score >= 50.0 and claim_score >= 45.0 and low_risk_structure:
+    if source_score >= 50.0 and claim_score >= 45.0 and low_risk_structure and contradiction_hits == 0:
         consistency_boost += CONSISTENCY_BOOST_CLEAN_RECORD
-    if source_score >= VERY_HIGH_SOURCE_THRESHOLD:
-        consistency_boost += CONSISTENCY_BOOST_HIGHLY_TRUSTED_SOURCE
-    elif source_score >= HIGH_SOURCE_THRESHOLD:
+    if source_score >= HIGH_SOURCE_THRESHOLD:
         consistency_boost += CONSISTENCY_BOOST_TRUSTED_SOURCE
     consistency_boost = min(consistency_boost, MAX_CONSISTENCY_BOOST)
 
@@ -744,11 +706,13 @@ def assess_algorithmic_credibility(headline: str, body: str, source: str, timest
     if risk_penalty > 0.0 or consistency_boost > 0.0:
         explanations.append(f"[Score Calibration] Risk calibration applied (penalty: {risk_penalty:.1f}, boost: {consistency_boost:.1f})")
 
+    bridge_result = _run_cxx_bridge(headline, body, effective_source)
+
     return AlgorithmAssessment(
-        overall_score=round(overall_score, 2),
-        verdict=verdict,
-        module_scores=module_scores,
-        explanations=explanations,
+        overall_score=round(bridge_result["overall_score"], 2) if bridge_result else round(overall_score, 2),
+        verdict=bridge_result["verdict"] if bridge_result else verdict,
+        module_scores=bridge_result["module_scores"] if bridge_result else module_scores,
+        explanations=bridge_result["explanations"] if bridge_result else explanations,
         suspicious_phrases=suspicious_phrases[:5],
         top_negative_terms=top_negative_terms,
         greedy_signals=greedy_signals,

@@ -99,6 +99,8 @@ const AnalysisResultContent = React.memo<AnalysisResultContentProps>(({ classNam
   const algorithmOverall = algorithms?.overall_score ?? 0;
   const moduleScores = algorithms?.module_scores ?? {};
   const topModules = Object.entries(moduleScores).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const tweetModel = analysisData.tweet_model;
+  const showTweetModel = inputType === 'text' && tweetModel?.enabled;
 
   return (
     <div className={className}>
@@ -267,9 +269,48 @@ const AnalysisResultContent = React.memo<AnalysisResultContentProps>(({ classNam
             <p><span className="font-semibold text-on-surface">Raw score:</span> {detection?.raw_score ?? 0}</p>
             <p><span className="font-semibold text-on-surface">Confidence band:</span> {confidence}</p>
             <p><span className="font-semibold text-on-surface">Primary label:</span> {detection?.verdict_label || verdictUi.label}</p>
+            {showTweetModel ? <p><span className="font-semibold text-on-surface">Tweet text model:</span> {tweetModel?.verdict_label}</p> : null}
           </div>
         </article>
       </section>
+
+      {showTweetModel ? (
+        <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <article className="rounded-3xl border border-outline-variant/10 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-on-surface">Tweet text model</h2>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-2xl bg-surface-container-low p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-secondary">Verdict</p>
+                <p className="mt-2 text-lg font-black text-on-surface">{tweetModel?.verdict_label}</p>
+              </div>
+              <div className="rounded-2xl bg-surface-container-low p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-secondary">Fake risk</p>
+                <p className="mt-2 text-3xl font-black text-on-surface">{tweetModel?.fake_probability}%</p>
+              </div>
+              <div className="rounded-2xl bg-surface-container-low p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-secondary">Coverage</p>
+                <p className="mt-2 text-3xl font-black text-on-surface">{tweetModel?.coverage_ratio}%</p>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-secondary">
+              {tweetModel?.summary}
+            </p>
+          </article>
+
+          <article className="rounded-3xl border border-outline-variant/10 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold text-on-surface">Tweet model notes</h2>
+            <div className="mt-4 space-y-3 text-sm text-secondary">
+              <p><span className="font-semibold text-on-surface">Model:</span> {tweetModel?.model_name}</p>
+              <p><span className="font-semibold text-on-surface">Threshold:</span> {tweetModel?.threshold_used}</p>
+              <p><span className="font-semibold text-on-surface">Derived features:</span> {tweetModel?.derived_feature_count} / {tweetModel?.feature_count}</p>
+              <p><span className="font-semibold text-on-surface">Confidence band:</span> {tweetModel?.confidence}</p>
+              {(tweetModel?.notes || []).map((note) => (
+                <p key={note}>{note}</p>
+              ))}
+            </div>
+          </article>
+        </section>
+      ) : null}
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <article className="rounded-3xl border border-outline-variant/10 bg-white p-6 shadow-sm">

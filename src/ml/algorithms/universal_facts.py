@@ -1,8 +1,8 @@
 """
 Offline contradiction checks for stable universal facts.
 
-Coverage is curated and data-driven through `facts_catalog.json` so new stable
-facts can be added without changing scoring code.
+Coverage is intentionally curated rather than open-ended. The fact catalog is
+data-driven so new stable facts can be added without changing scoring code.
 """
 
 from __future__ import annotations
@@ -49,16 +49,21 @@ def _match_rule(text: str, rule: UniversalFactRule) -> str | None:
     match = rule.pattern.search(text)
     if not match:
         return None
+
     if rule.expected_group is None:
         return rule.message
-    if match.group(rule.expected_group) != rule.expected_value:
+
+    actual_value = match.group(rule.expected_group)
+    if actual_value != rule.expected_value:
         return rule.message
     return None
 
 
 def _matches_verified_fact(text: str, rule: UniversalFactRule) -> bool:
     match = rule.pattern.search(text)
-    if not match or rule.expected_group is None:
+    if not match:
+        return False
+    if rule.expected_group is None:
         return False
     return match.group(rule.expected_group) == rule.expected_value
 
