@@ -21,7 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.ml.algorithms.credibility_engine import assess_algorithmic_credibility
-from src.ml.models.fake_news_predictor import classify_with_algorithm_score
+from src.ml.models.fake_news_predictor import classify_text, classify_with_algorithm_assessment
 
 _DATE_RE = re.compile(
     r"""
@@ -93,12 +93,32 @@ def _detect_suspicious(text: str) -> List[str]:
 
 
 def build_result(text: str) -> TextAnalysisResult:
+    return build_result_with_options(text, use_algorithms=True)
+
+
+def build_result_with_options(text: str, use_algorithms: bool = True) -> TextAnalysisResult:
     started_at = time.time()
     cleaned = re.sub(r"\s+", " ", text).strip()
     headline = _extract_headline(text)
     suspicious = _detect_suspicious(cleaned)
-    algorithms = assess_algorithmic_credibility(headline, cleaned, "User provided text").to_dict()
-    detection = classify_with_algorithm_score(cleaned, algorithms["overall_score"], suspicious, "User provided text").to_dict()
+    if use_algorithms:
+        algorithms = assess_algorithmic_credibility(headline, cleaned, "User provided text").to_dict()
+        detection = classify_with_algorithm_assessment(cleaned, algorithms, suspicious, "User provided text").to_dict()
+    else:
+        algorithms = {
+            "enabled": False,
+            "overall_score": 0,
+            "verdict": "unverified",
+            "module_scores": {},
+            "explanations": ["Algorithm scoring was disabled for this run."],
+            "suspicious_phrases": [],
+            "top_negative_terms": [],
+            "greedy_signals": [],
+            "claim_flags": [],
+            "ai_flags": [],
+            "source_label": "disabled",
+        }
+        detection = classify_text(cleaned, suspicious, "User provided text").to_dict()
 
     return TextAnalysisResult(
         combined_text=cleaned,
@@ -117,6 +137,7 @@ def main():
     parser = argparse.ArgumentParser(description="Analyze raw text for fake news signals")
     parser.add_argument("--text", required=True, help="Text to analyze (max 100,000 characters)")
     parser.add_argument("--format", dest="fmt", choices=["txt", "json"], default="json")
+    parser.add_argument("--disable-algorithms", action="store_true", help="Skip deterministic algorithm scoring")
     args = parser.parse_args()
 
     # Validate text length to prevent memory exhaustion
@@ -137,7 +158,7 @@ def main():
         sys.exit(1)
 
     try:
-        result = build_result(args.text)
+        result = build_result_with_options(args.text, use_algorithms=not args.disable_algorithms)
         if args.fmt == "txt":
             print(result.body)
         else:

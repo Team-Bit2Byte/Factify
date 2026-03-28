@@ -112,8 +112,19 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Factify API server is running' });
 });
 
+function shouldUseAlgorithms(rawValue) {
+  if (typeof rawValue === 'boolean') {
+    return rawValue;
+  }
+  if (typeof rawValue === 'string') {
+    return !['false', '0', 'off', 'no'].includes(rawValue.trim().toLowerCase());
+  }
+  return true;
+}
+
 app.post('/api/analyze-url', async (req, res) => {
   const normalizedUrl = normalizeHttpUrl(req.body?.url);
+  const useAlgorithms = shouldUseAlgorithms(req.body?.useAlgorithms);
 
   if (!normalizedUrl) {
     return res.status(400).json({ error: 'A valid http(s) URL is required' });
@@ -133,6 +144,7 @@ app.post('/api/analyze-url', async (req, res) => {
         pythonScript,
         '--url', normalizedUrl,
         '--format', 'json',
+        ...(useAlgorithms ? [] : ['--disable-algorithms']),
       ],
       req
     );
@@ -154,6 +166,7 @@ app.post('/api/analyze-url', async (req, res) => {
 
 app.post('/api/analyze-text', async (req, res) => {
   const submittedText = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+  const useAlgorithms = shouldUseAlgorithms(req.body?.useAlgorithms);
 
   if (!submittedText) {
     return res.status(400).json({ error: 'Text content is required' });
@@ -172,6 +185,7 @@ app.post('/api/analyze-text', async (req, res) => {
         pythonScript,
         '--text', submittedText,
         '--format', 'json',
+        ...(useAlgorithms ? [] : ['--disable-algorithms']),
       ],
       req
     );
@@ -277,6 +291,7 @@ function summarizePythonError(stderrData) {
 }
 
 function runImageScript(scriptPath, imagePath, req) {
+  const useAlgorithms = shouldUseAlgorithms(req?.body?.useAlgorithms);
   return runPythonCommand(
     [
       scriptPath,
@@ -284,6 +299,7 @@ function runImageScript(scriptPath, imagePath, req) {
       '--format', 'json',
       '--mode', DEFAULT_OCR_MODE,
       '--engine', DEFAULT_OCR_ENGINE,
+      ...(useAlgorithms ? [] : ['--disable-algorithms']),
     ],
     req
   );

@@ -296,6 +296,7 @@ const AnalysisResultContent = React.memo<AnalysisResultContentProps>(({ classNam
           <div className="mt-4 space-y-3 text-sm text-secondary">
             <p><span className="font-semibold text-on-surface">Suspicious phrases:</span> {algorithms?.suspicious_phrases?.join(', ') || 'None'}</p>
             <p><span className="font-semibold text-on-surface">Claim flags:</span> {algorithms?.claim_flags?.join(', ') || 'None'}</p>
+            <p><span className="font-semibold text-on-surface">AI writing flags:</span> {algorithms?.ai_flags?.join(', ') || 'None'}</p>
             <p><span className="font-semibold text-on-surface">Top negative terms:</span> {algorithms?.top_negative_terms?.map((item) => item.term).join(', ') || 'None'}</p>
             <p><span className="font-semibold text-on-surface">Greedy signals:</span> {algorithms?.greedy_signals?.map((item) => item.pattern_name).join(', ') || 'None'}</p>
           </div>

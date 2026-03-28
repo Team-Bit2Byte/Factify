@@ -60,7 +60,7 @@ mint newspaper,trusted,84
 national review,trusted,74
 nature news,trusted,95
 nbc news,trusted,86
-ndtv,trusted,78
+ndtv,trusted,82
 netherlands public broadcasting nos,trusted,89
 new zealand herald,trusted,85
 news24 south africa,trusted,80
@@ -114,7 +114,11 @@ the washington post,trusted,91
 the weekly standard,trusted,73
 the wire india,trusted,79
 time magazine,trusted,86
-times of india,trusted,80
+times of india,trusted,85
+timesofindia,trusted,85
+indiatimes,trusted,85
+timesofindia.indiatimes.com,trusted,85
+toi,trusted,85
 univision noticias,trusted,77
 usa today,trusted,82
 vox,trusted,79
@@ -345,3 +349,90 @@ aap,trusted,87
 sda,trusted,85
 apa,trusted,86
 cna,trusted,84
+aaj tak,trusted,85
+aajtak,trusted,85
+zee news,trusted,82
+india tv,trusted,80
+abp news,trusted,83
+abp,trusted,83
+news18,trusted,81
+news 18,trusted,81
+republic tv,neutral,65
+tv9 bharatvarsh,neutral,68
+tv9,neutral,68
+dd news,trusted,84
+doordarshan,trusted,84
+hindustan,trusted,84
+dainik bhaskar,neutral,70
+jagran,neutral,69
+mathrubhumi,trusted,80
+manorama,trusted,82
+eenadu,trusted,79
+ananda bazar patrika,trusted,80
+abp ananda,trusted,80
+the statesman india,trusted,83
+ndtv.com,trusted,82
+thehindu.com,trusted,88
+indianexpress.com,trusted,87
+hindustantimes.com,trusted,84
+scroll.in,trusted,80
+thewire.in,trusted,79
+business-standard.com,trusted,83
+economictimes.indiatimes.com,trusted,82
+livemint.com,trusted,84
+dnaindia.com,neutral,68
+firstpost.com,neutral,61
+moneycontrol.com,neutral,68
+www.timesofindia.indiatimes.com,trusted,85
+www.ndtv.com,trusted,82
+www.thehindu.com,trusted,88
+www.indianexpress.com,trusted,87
+www.hindustantimes.com,trusted,84
+www.scroll.in,trusted,80
+www.thewire.in,trusted,79
+www.economictimes.indiatimes.com,trusted,82
+www.livemint.com,trusted,84
+www.business-standard.com,trusted,83
+www.reuters.com,trusted,96
+www.bbc.com,trusted,94
+www.bbc.co.uk,trusted,94
+www.cnn.com,trusted,80
+www.theguardian.com,trusted,91
+www.nytimes.com,trusted,92
+www.washingtonpost.com,trusted,91
+www.wsj.com,trusted,90
+www.ft.com,trusted,93
+www.npr.org,trusted,91
+www.aljazeera.com,trusted,89
+www.bloomberg.com,trusted,92
+www.apnews.com,trusted,96
+www.politico.com,trusted,83
+www.theverge.com,neutral,68
+www.wired.com,neutral,70
+www.vox.com,trusted,79
+www.usatoday.com,trusted,82
+www.latimes.com,trusted,88
+www.bostonglobe.com,trusted,87
+www.chicagotribune.com,trusted,85
+www.seattletimes.com,trusted,85
+www.miamiherald.com,trusted,84
+www.denverpost.com,trusted,83
+www.dw.com,trusted,90
+www.france24.com,trusted,88
+www.lemonde.fr,trusted,91
+www.elpais.com,trusted,89
+www.spiegel.de,trusted,90
+www.scmp.com,trusted,80
+www.straitstimes.com,trusted,86
+www.japantimes.co.jp,trusted,84
+www.koreaherald.com,trusted,82
+www.thetimes.co.uk,trusted,83
+www.telegraph.co.uk,trusted,83
+www.independent.co.uk,trusted,82
+www.irishtimes.com,trusted,88
+www.abc.net.au,trusted,90
+www.smh.com.au,trusted,87
+www.nzherald.co.nz,trusted,85
+www.dnaindia.com,neutral,68
+www.firstpost.com,neutral,61
+www.moneycontrol.com,neutral,68

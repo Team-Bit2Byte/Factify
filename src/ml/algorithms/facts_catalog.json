@@ -1,0 +1,101 @@
+[
+  {
+    "name": "sun_rises_direction",
+    "pattern": "\\bsun\\s+rises?\\s+in\\s+the\\s+(east|west|north|south)\\b",
+    "expected_group": 1,
+    "expected_value": "east",
+    "message": "Known factual contradiction: the sun rises in the east."
+  },
+  {
+    "name": "sun_sets_direction",
+    "pattern": "\\bsun\\s+sets?\\s+in\\s+the\\s+(east|west|north|south)\\b",
+    "expected_group": 1,
+    "expected_value": "west",
+    "message": "Known factual contradiction: the sun sets in the west."
+  },
+  {
+    "name": "earth_shape",
+    "pattern": "\\bearth\\s+is\\s+flat\\b",
+    "message": "Known factual contradiction: Earth is not flat."
+  },
+  {
+    "name": "moon_cheese",
+    "pattern": "\\bmoon\\s+is\\s+made\\s+of\\s+cheese\\b",
+    "message": "Known factual contradiction: the Moon is not made of cheese."
+  },
+  {
+    "name": "human_oxygen",
+    "pattern": "\\bhumans?\\s+(never|do\\s+not|did\\s+not)\\s+need\\s+oxygen\\b",
+    "message": "Known factual contradiction: humans need oxygen to survive."
+  },
+  {
+    "name": "water_boiling_point_c",
+    "pattern": "\\bwater\\s+boils?\\s+at\\s+0\\s*degrees?\\s*c\\b",
+    "message": "Known factual contradiction: water does not boil at 0°C under normal atmospheric pressure."
+  },
+  {
+    "name": "water_freezing_point_c",
+    "pattern": "\\bwater\\s+freezes?\\s+at\\s+100\\s*degrees?\\s*c\\b",
+    "message": "Known factual contradiction: water does not freeze at 100°C under normal atmospheric pressure."
+  },
+  {
+    "name": "sound_vs_light",
+    "pattern": "\\bsound\\s+travels?\\s+faster\\s+than\\s+light\\b",
+    "message": "Known factual contradiction: light travels faster than sound."
+  },
+  {
+    "name": "gravity_direction",
+    "pattern": "\\bgravity\\s+(pushes|pulls)\\s+things\\s+upward\\b",
+    "message": "Known factual contradiction: gravity pulls objects toward Earth, not upward."
+  },
+  {
+    "name": "math_two_plus_two",
+    "pattern": "\\b2\\s*\\+\\s*2\\s*=\\s*5\\b",
+    "message": "Known factual contradiction: 2 + 2 = 4."
+  },
+  {
+    "name": "kilometer_conversion",
+    "pattern": "\\bone\\s+kilomet(?:er|re)\\s*=\\s*100\\s+meters\\b",
+    "message": "Known factual contradiction: 1 kilometer equals 1000 meters."
+  },
+  {
+    "name": "solar_system_center",
+    "pattern": "\\bearth\\s+is\\s+the\\s+center\\s+of\\s+the\\s+solar\\s+system\\b",
+    "message": "Known factual contradiction: Earth is not the center of the solar system."
+  },
+  {
+    "name": "planet_count",
+    "pattern": "\\bthere\\s+are\\s+([0-9]+)\\s+planets\\s+in\\s+the\\s+solar\\s+system\\b",
+    "expected_group": 1,
+    "expected_value": "8",
+    "message": "Known factual contradiction: there are 8 planets in the solar system."
+  },
+  {
+    "name": "earth_moon_count",
+    "pattern": "\\bearth\\s+has\\s+([0-9]+)\\s+moons?\\b",
+    "expected_group": 1,
+    "expected_value": "1",
+    "message": "Known factual contradiction: Earth has 1 moon."
+  },
+  {
+    "name": "days_in_week",
+    "pattern": "\\bthere\\s+are\\s+([0-9]+)\\s+days\\s+in\\s+a\\s+week\\b",
+    "expected_group": 1,
+    "expected_value": "7",
+    "message": "Known factual contradiction: there are 7 days in a week."
+  },
+  {
+    "name": "hours_in_day",
+    "pattern": "\\bthere\\s+are\\s+([0-9]+)\\s+hours\\s+in\\s+a\\s+day\\b",
+    "expected_group": 1,
+    "expected_value": "24",
+    "message": "Known factual contradiction: there are 24 hours in a day."
+  },
+  {
+    "name": "minutes_in_hour",
+    "pattern": "\\bthere\\s+are\\s+([0-9]+)\\s+minutes\\s+in\\s+an?\\s+hour\\b",
+    "expected_group": 1,
+    "expected_value": "60",
+    "message": "Known factual contradiction: there are 60 minutes in an hour."
+  }
+]

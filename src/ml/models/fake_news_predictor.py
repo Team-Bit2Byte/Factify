@@ -19,6 +19,11 @@ from typing import List
 import h5py
 import numpy as np
 
+from src.ml.algorithms.universal_facts import (
+    detect_universal_fact_contradictions,
+    detect_verified_universal_facts,
+)
+
 MODEL_PATH = Path(__file__).with_name("fake_news_detector.keras")
 VOCAB_SIZE = 5000
 SEQUENCE_LENGTH = 42
@@ -273,3 +278,84 @@ def classify_with_algorithm_score(
         summary=summary,
         findings=base.findings,
     )
+
+
+def classify_with_algorithm_assessment(
+    text: str,
+    algorithm_assessment: dict,
+    suspicious_elements: List[str] | None = None,
+    source: str = "",
+) -> DetectionResult:
+    suspicious_elements = suspicious_elements or []
+    base = classify_with_algorithm_score(
+        text,
+        float(algorithm_assessment.get("overall_score") or 0.0),
+        suspicious_elements,
+        source,
+    )
+
+    algorithm_score = float(algorithm_assessment.get("overall_score") or 0.0)
+    algorithm_verdict = algorithm_assessment.get("verdict")
+    claim_flags = algorithm_assessment.get("claim_flags") or []
+    contradiction_flags = [flag for flag in claim_flags if "factual contradiction" in flag.lower()]
+    verified_fact_hits = detect_verified_universal_facts(text)
+    contradiction_hits = contradiction_flags or detect_universal_fact_contradictions(text)
+
+    if contradiction_hits:
+        findings = list(dict.fromkeys(base.findings + contradiction_hits[:2]))
+        return DetectionResult(
+            verdict="likely_fake_false",
+            verdict_label="Likely Fake / False",
+            raw_score=base.raw_score,
+            fake_probability=max(base.fake_probability, 82),
+            original_probability=100 - max(base.fake_probability, 82),
+            confidence="high",
+            confidence_score=max(base.confidence_score, 72),
+            summary="The claim matches a known factual contradiction, so it is pushed into the high-risk band.",
+            findings=findings[:5],
+        )
+
+    if verified_fact_hits:
+        findings = list(dict.fromkeys(base.findings + ["Claim matches a verified universal fact pattern."]))
+        return DetectionResult(
+            verdict="likely_original",
+            verdict_label="Likely Original",
+            raw_score=base.raw_score,
+            fake_probability=min(base.fake_probability, 24),
+            original_probability=max(base.original_probability, 76),
+            confidence="high",
+            confidence_score=max(base.confidence_score, 72),
+            summary="The claim matches a verified universal fact pattern and is promoted into the low-risk band.",
+            findings=findings[:5],
+        )
+
+    if algorithm_verdict == "likely_original" and algorithm_score >= 92.0:
+        findings = list(dict.fromkeys(base.findings + ["Deterministic credibility checks strongly support a grounded report."]))
+        return DetectionResult(
+            verdict="likely_original",
+            verdict_label="Likely Original",
+            raw_score=base.raw_score,
+            fake_probability=min(base.fake_probability, 28),
+            original_probability=max(base.original_probability, 72),
+            confidence="high" if base.confidence_score >= 60 else "medium",
+            confidence_score=max(base.confidence_score, 68),
+            summary="Strong deterministic credibility signals outweigh the weaker model-side uncertainty for this report.",
+            findings=findings[:5],
+        )
+
+    if algorithm_verdict == "likely_fake_false" and algorithm_score <= 45.0:
+        findings = list(dict.fromkeys(base.findings + claim_flags[:2]))
+        boosted_fake_probability = max(base.fake_probability, 72)
+        return DetectionResult(
+            verdict="likely_fake_false",
+            verdict_label="Likely Fake / False",
+            raw_score=base.raw_score,
+            fake_probability=boosted_fake_probability,
+            original_probability=100 - boosted_fake_probability,
+            confidence="high" if base.confidence_score >= 60 else "medium",
+            confidence_score=max(base.confidence_score, 64),
+            summary="Deterministic credibility checks point strongly toward a high-risk or misleading claim.",
+            findings=findings[:5],
+        )
+
+    return base

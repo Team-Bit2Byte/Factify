@@ -3,8 +3,6 @@ import {
   FileText,
   Image,
   Link as LinkIcon,
-  Sparkles,
-  Network,
   BarChart3,
   UploadCloud,
   Loader2,
@@ -98,7 +96,7 @@ export default function LandingPage() {
       setUploadError(null);
 
       try {
-        const response = await analyzeText(trimmedText, signal);
+        const response = await analyzeText(trimmedText, {}, signal);
 
         if (response.success) {
           setAnalysisResult(response.result);
@@ -129,7 +127,7 @@ export default function LandingPage() {
 
       try {
         console.log("Uploading image:", selectedFile.name);
-        const response = await analyzeImage(selectedFile, signal);
+        const response = await analyzeImage(selectedFile, {}, signal);
 
         if (response.success) {
           setAnalysisResult(response.result);
@@ -166,7 +164,7 @@ export default function LandingPage() {
       setUploadError(null);
 
       try {
-        const response = await analyzeUrl(trimmedUrl, signal);
+        const response = await analyzeUrl(trimmedUrl, {}, signal);
 
         if (response.success) {
           setAnalysisResult(response.result);
@@ -350,25 +348,7 @@ export default function LandingPage() {
                 )}
               </div>
               {/* Action Bar */}
-              <div className="flex flex-col gap-4 pt-4 sm:gap-5 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
-                  <button
-                    type="button"
-                    onClick={() => alert("Language auto-detected: English")}
-                    className="flex items-center gap-2 text-left text-sm font-medium text-secondary hover:text-primary transition-colors"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Auto-detect Language
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => alert("Context Tuning options open")}
-                    className="flex items-center gap-2 text-left text-sm font-medium text-secondary hover:text-primary transition-colors"
-                  >
-                    <Network className="w-4 h-4" />
-                    Context Tuning
-                  </button>
-                </div>
+              <div className="flex flex-col gap-4 pt-4 sm:gap-5 lg:flex-row lg:items-center lg:justify-end">
                 <button
                   type="button"
                   onClick={handleAnalyze}

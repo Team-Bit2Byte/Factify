@@ -37,7 +37,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.ml.algorithms.credibility_engine import assess_algorithmic_credibility
-from src.ml.models.fake_news_predictor import classify_with_algorithm_score
+from src.ml.models.fake_news_predictor import classify_text, classify_with_algorithm_assessment
 
 # ── Tesseract (optional — works without it) ───────────────────────────────────
 try:
@@ -638,6 +638,7 @@ def process_image(
     mode: str        = "auto",
     engine: str      = "auto",
     confidence: float = 0.4,
+    use_algorithms: bool = True,
 ) -> ImageTextResult:
     """
     Full pipeline: image -> preprocessing -> OCR -> captioning -> NER -> result.
@@ -697,17 +698,37 @@ def process_image(
         parts.append(f"[Scene]: {caption.strip()}")
     combined = " ".join(parts)
 
-    algorithms = assess_algorithmic_credibility(
-        parsed.get("headline", "None"),
-        parsed.get("body", combined),
-        parsed.get("source", "None"),
-    ).to_dict()
-    detection = classify_with_algorithm_score(
-        combined,
-        algorithms["overall_score"],
-        parsed.get("suspicious_elements", []),
-        parsed.get("source", "None"),
-    ).to_dict()
+    if use_algorithms:
+        algorithms = assess_algorithmic_credibility(
+            parsed.get("headline", "None"),
+            parsed.get("body", combined),
+            parsed.get("source", "None"),
+        ).to_dict()
+        detection = classify_with_algorithm_assessment(
+            combined,
+            algorithms,
+            parsed.get("suspicious_elements", []),
+            parsed.get("source", "None"),
+        ).to_dict()
+    else:
+        algorithms = {
+            "enabled": False,
+            "overall_score": 0,
+            "verdict": "unverified",
+            "module_scores": {},
+            "explanations": ["Algorithm scoring was disabled for this run."],
+            "suspicious_phrases": [],
+            "top_negative_terms": [],
+            "greedy_signals": [],
+            "claim_flags": [],
+            "ai_flags": [],
+            "source_label": "disabled",
+        }
+        detection = classify_text(
+            combined,
+            parsed.get("suspicious_elements", []),
+            parsed.get("source", "None"),
+        ).to_dict()
 
     return ImageTextResult(
         combined_text       = combined,
@@ -843,6 +864,8 @@ Examples:
                    help="Save output to file (single image mode)")
     p.add_argument("--score", action="store_true",
                    help="Run credibility model stub on result")
+    p.add_argument("--disable-algorithms", action="store_true",
+                   help="Skip deterministic algorithm scoring")
     return p
 
 
@@ -855,6 +878,7 @@ def main():
             mode=args.mode,
             engine=args.engine,
             confidence=args.confidence,
+            use_algorithms=not args.disable_algorithms,
         )
 
         formatted = (result.to_text() if args.fmt == "txt"
