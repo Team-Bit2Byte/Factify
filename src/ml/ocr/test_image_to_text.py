@@ -32,6 +32,12 @@ import cv2
 import numpy as np
 from PIL import Image
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.ml.models.fake_news_predictor import classify_text
+
 # ── Tesseract (optional — works without it) ───────────────────────────────────
 try:
     import pytesseract
@@ -73,6 +79,7 @@ class ImageTextResult:
     caption: str              = ""
     processing_time_sec: float = 0.0
     raw_ocr_text: str         = ""
+    detection: dict           = field(default_factory=dict)
 
     def to_text(self) -> str:
         def fmt(lst): return ", ".join(lst) if lst else "None"
@@ -639,6 +646,8 @@ def process_image(
         parts.append(f"[Scene]: {caption.strip()}")
     combined = " ".join(parts)
 
+    detection = classify_text(combined, parsed.get("suspicious_elements", []), parsed.get("source", "None")).to_dict()
+
     return ImageTextResult(
         combined_text       = combined,
         headline            = parsed.get("headline", "None"),
@@ -656,6 +665,7 @@ def process_image(
         caption             = caption,
         processing_time_sec = round(time.time() - t0, 2),
         raw_ocr_text        = ocr_text,
+        detection           = detection,
     )
 
 

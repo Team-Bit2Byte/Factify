@@ -1,6 +1,15 @@
 import React from 'react';
-import { AlertTriangle, Share, Download, ClipboardCheck, XCircle, FileText, Image, ShieldCheck } from 'lucide-react';
-import { MOCK_ANALYSIS_DATA } from '../../constants/config';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardCheck,
+  FileText,
+  Globe,
+  HelpCircle,
+  Image as ImageIcon,
+  ScanText,
+  ShieldAlert,
+} from 'lucide-react';
 import type { AnalysisResult } from '../../services/api';
 
 interface AnalysisResultContentProps {
@@ -21,336 +30,233 @@ function uniqueItems(items: string[]) {
   return [...new Set(items.filter(Boolean))];
 }
 
-const AnalysisResultContent = React.memo<AnalysisResultContentProps>(({ className = '', analysisData }) => {
-  // If we have real data from image analysis, format it. Otherwise use mock data.
-  const extractedText = normalizeField(analysisData?.combined_text);
-  const headline = normalizeField(analysisData?.headline);
-  const body = normalizeField(analysisData?.body);
-  const source = normalizeField(analysisData?.source);
-  const caption = normalizeField(analysisData?.caption);
-  const resolvedUrl = normalizeField(analysisData?.url);
-  const isUrlAnalysis = analysisData?.input_type === 'url' || Boolean(resolvedUrl);
-  const methodLabel = normalizeField(analysisData?.engine_used) || (isUrlAnalysis ? 'scraper' : 'ocr');
-  const people = uniqueItems(analysisData?.people ?? []);
-  const organizations = uniqueItems(analysisData?.organizations ?? []);
-  const locations = uniqueItems(analysisData?.locations ?? []);
-  const dates = uniqueItems(analysisData?.dates ?? []);
-  const suspiciousElements = uniqueItems(analysisData?.suspicious_elements ?? []);
-  const hasRealAnalysis = Boolean(analysisData && (extractedText || body || headline));
+function formatVerdict(verdict?: AnalysisResult['detection']['verdict']) {
+  switch (verdict) {
+    case 'likely_original':
+      return {
+        label: 'Likely Original',
+        badgeClass: 'bg-emerald-100 text-emerald-700',
+        ringClass: 'text-emerald-500',
+        panelClass: 'from-emerald-50 to-white',
+        icon: CheckCircle2,
+      };
+    case 'unverified':
+      return {
+        label: 'Unverified',
+        badgeClass: 'bg-amber-100 text-amber-700',
+        ringClass: 'text-amber-500',
+        panelClass: 'from-amber-50 to-white',
+        icon: HelpCircle,
+      };
+    default:
+      return {
+        label: 'Likely Fake / False',
+        badgeClass: 'bg-rose-100 text-rose-700',
+        ringClass: 'text-rose-500',
+        panelClass: 'from-rose-50 to-white',
+        icon: ShieldAlert,
+      };
+  }
+}
 
-  const data = analysisData ? {
-    ...MOCK_ANALYSIS_DATA,
-    title: headline || extractedText.slice(0, 100) || MOCK_ANALYSIS_DATA.title,
-    content: body || extractedText,
-    extractedText,
-    // Add entities data from analysis
-    entities: {
-      people,
-      organizations,
-      locations,
-      dates,
-    },
-    suspiciousElements,
-  } : MOCK_ANALYSIS_DATA;
+const AnalysisResultContent = React.memo<AnalysisResultContentProps>(({ className = '', analysisData }) => {
+  if (!analysisData) {
+    return (
+      <div className={className}>
+        <div className="rounded-3xl border border-dashed border-outline-variant/30 bg-white/70 p-8 text-center shadow-sm">
+          <ClipboardCheck className="mx-auto mb-4 h-10 w-10 text-primary" />
+          <h2 className="text-2xl font-black tracking-tight text-on-surface">Run an analysis to see the verdict</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-secondary">
+            Factify will classify the content as Likely Original, Unverified, or Likely Fake / False and show the extracted evidence here.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const extractedText = normalizeField(analysisData.combined_text);
+  const headline = normalizeField(analysisData.headline) || 'Untitled analysis';
+  const body = normalizeField(analysisData.body) || extractedText;
+  const source = normalizeField(analysisData.source);
+  const caption = normalizeField(analysisData.caption);
+  const resolvedUrl = normalizeField(analysisData.url);
+  const methodLabel = normalizeField(analysisData.engine_used);
+  const dates = uniqueItems(analysisData.dates ?? []);
+  const people = uniqueItems(analysisData.people ?? []);
+  const organizations = uniqueItems(analysisData.organizations ?? []);
+  const locations = uniqueItems(analysisData.locations ?? []);
+  const suspiciousElements = uniqueItems(analysisData.suspicious_elements ?? []);
+  const detection = analysisData.detection;
+  const verdictUi = formatVerdict(detection?.verdict);
+  const VerdictIcon = verdictUi.icon;
+  const fakeProbability = detection?.fake_probability ?? 0;
+  const originalProbability = detection?.original_probability ?? 0;
+  const confidence = detection?.confidence ?? 'low';
+  const confidenceScore = detection?.confidence_score ?? 0;
+  const findings = detection?.findings?.length ? detection.findings : suspiciousElements;
+  const inputType = analysisData.input_type ?? 'image';
 
   return (
     <div className={className}>
-      {/* Header Section */}
-      <section className="mb-10 flex flex-col gap-6 md:mb-12 md:flex-row md:items-start md:justify-between md:gap-8">
-        <div className="space-y-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-error-container text-error text-[10px] font-bold uppercase tracking-widest">
-            <AlertTriangle className="w-3 h-3 fill-current" />
-            Likely Fake
+      <section className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-3">
+          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] ${verdictUi.badgeClass}`}>
+            <VerdictIcon className="h-4 w-4" />
+            {detection?.verdict_label || verdictUi.label}
           </span>
-          <h1 className="max-w-2xl text-2xl font-black leading-tight tracking-tight text-on-surface sm:text-3xl lg:text-5xl">
-            {data.title}
-          </h1>
-          <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-secondary">
-            Analysed on {data.analysisDate} • <span className="text-on-surface">Article ID: {data.articleId}</span>
-          </p>
+          <div>
+            <h1 className="max-w-3xl text-2xl font-black leading-tight tracking-tight text-on-surface sm:text-3xl lg:text-4xl">
+              {headline}
+            </h1>
+            <p className="mt-2 text-sm text-secondary">
+              Input: <span className="font-semibold text-on-surface capitalize">{inputType}</span>
+              {' • '}
+              Engine: <span className="font-semibold text-on-surface">{methodLabel || 'model inference'}</span>
+              {' • '}
+              Runtime: <span className="font-semibold text-on-surface">{analysisData.processing_time_sec.toFixed(2)}s</span>
+            </p>
+          </div>
         </div>
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:shrink-0">
-          <button 
-            onClick={() => alert('Share dialog coming soon!')}
-            className="flex items-center justify-center gap-2 rounded-lg bg-surface-container-highest px-4 py-2 text-sm font-bold text-on-surface transition-colors hover:bg-surface-variant"
-            aria-label="Share analysis"
-          >
-            <Share className="w-4 h-4" />
-            Share
-          </button>
-          <button 
-            onClick={() => alert('PDF export started!')}
-            className="flex items-center justify-center gap-2 rounded-lg bg-surface-container-highest px-4 py-2 text-sm font-bold text-on-surface transition-colors hover:bg-surface-variant"
-            aria-label="Export as PDF"
-          >
-            <Download className="w-4 h-4" />
-            Export
-          </button>
+
+        <div className="rounded-2xl border border-outline-variant/15 bg-white px-4 py-3 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-secondary">Confidence</p>
+          <p className="mt-1 text-2xl font-black text-on-surface">{confidenceScore}%</p>
+          <p className="text-sm capitalize text-secondary">{confidence}</p>
         </div>
       </section>
 
-      {/* Top Bento Grid: Score & Summary */}
       <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Score Display (4/12) */}
-        <div className="relative overflow-hidden rounded-3xl border border-outline-variant/10 bg-white p-6 text-center shadow-sm group sm:p-8 lg:col-span-4">
-          <div className="absolute top-0 right-0 p-4">
-            <span className="flex items-center gap-1 text-tertiary font-bold text-xs bg-tertiary-fixed-dim/30 px-2 py-1 rounded-full">
-              Confidence: {data.confidence.charAt(0).toUpperCase() + data.confidence.slice(1)}
-            </span>
+        <section className={`overflow-hidden rounded-3xl border border-outline-variant/10 bg-gradient-to-br ${verdictUi.panelClass} p-6 shadow-sm lg:col-span-5`}>
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-secondary">Model verdict</p>
+              <h2 className="mt-2 text-2xl font-black text-on-surface">{detection?.verdict_label || verdictUi.label}</h2>
+            </div>
+            <VerdictIcon className={`h-10 w-10 ${verdictUi.ringClass}`} />
           </div>
-          <div className="relative mx-auto mb-6 flex h-36 w-36 items-center justify-center sm:h-44 sm:w-44 lg:h-48 lg:w-48">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-              <circle className="text-surface-container" cx="50" cy="50" fill="transparent" r="44" stroke="currentColor" strokeWidth="8"></circle>
-              <circle className="text-error transition-all duration-1000" cx="50" cy="50" fill="transparent" r="44" stroke="currentColor" strokeDasharray="276" strokeDashoffset="50" strokeLinecap="round" strokeWidth="8"></circle>
+
+          <div className="relative mx-auto mb-6 flex h-44 w-44 items-center justify-center">
+            <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100">
+              <circle className="text-surface-container" cx="50" cy="50" fill="transparent" r="44" stroke="currentColor" strokeWidth="8" />
+              <circle
+                className={`${verdictUi.ringClass} transition-all duration-700`}
+                cx="50"
+                cy="50"
+                fill="transparent"
+                r="44"
+                stroke="currentColor"
+                strokeDasharray="276"
+                strokeDashoffset={276 - (276 * fakeProbability) / 100}
+                strokeLinecap="round"
+                strokeWidth="8"
+              />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-4xl font-black leading-none text-on-surface sm:text-5xl">{data.probability}%</span>
-              <span className="text-xs uppercase tracking-widest text-secondary mt-1 font-bold">Probability</span>
+              <span className="text-5xl font-black leading-none text-on-surface">{fakeProbability}%</span>
+              <span className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-secondary">Fake risk</span>
             </div>
           </div>
-          <h3 className="text-xl font-bold text-on-surface mb-2">Fake News Detected</h3>
-          <p className="text-sm text-secondary leading-relaxed">Highly correlated with known misinformation patterns in geopolitical reporting.</p>
-        </div>
 
-        {/* Explanation Panel (8/12) */}
-        <div className="flex flex-col rounded-3xl bg-surface-container-low p-6 sm:p-8 lg:col-span-8">
-          <div className="flex items-center gap-2 mb-6">
-            <ClipboardCheck className="text-primary w-6 h-6" />
-            <h2 className="text-xl font-bold">Veracity Verdict</h2>
+          <p className="text-sm leading-6 text-secondary">
+            {detection?.summary || 'The model did not provide a textual summary.'}
+          </p>
+        </section>
+
+        <section className="rounded-3xl border border-outline-variant/10 bg-surface-container-low p-6 shadow-sm lg:col-span-7">
+          <div className="mb-6 flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-bold text-on-surface">Evidence snapshot</h2>
           </div>
-          <div className="grid h-full grid-cols-1 gap-6 xl:grid-cols-2 xl:gap-8">
-            <div className="space-y-4">
-              <h4 className="text-sm font-bold uppercase tracking-wider text-secondary">Key Findings</h4>
-              <ul className="space-y-4">
-                {data.findings.map((finding, idx) => (
-                  <li key={idx} className="flex items-start gap-3">
-                    <XCircle className="text-error w-5 h-5 fill-current shrink-0" />
-                    <p className="text-sm font-medium">{finding.message}</p>
-                  </li>
-                ))}
-              </ul>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-2xl bg-white p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-secondary">Likely original</p>
+              <p className="mt-2 text-3xl font-black text-on-surface">{originalProbability}%</p>
+              <p className="mt-1 text-sm text-secondary">Signal supporting legitimate reporting patterns.</p>
             </div>
-            <div className="bg-white/50 rounded-2xl p-6 border border-white/80">
-              <h4 className="text-sm font-bold uppercase tracking-wider text-secondary mb-4">Neural Map Breakdown</h4>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <span>Syntax Deviation</span>
-                    <span>{data.metrics.syntaxDeviation}%</span>
+
+            <div className="rounded-2xl bg-white p-4 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-secondary">Likely fake / false</p>
+              <p className="mt-2 text-3xl font-black text-on-surface">{fakeProbability}%</p>
+              <p className="mt-1 text-sm text-secondary">Signal matching misinformation-like language patterns.</p>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-secondary">Key findings</p>
+            <div className="mt-4 space-y-3">
+              {findings.length ? (
+                findings.map((finding, index) => (
+                  <div key={`${finding}-${index}`} className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <p className="text-sm leading-6 text-on-surface">{finding}</p>
                   </div>
-                  <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
-                    <div className="h-full bg-error" style={{ width: `${data.metrics.syntaxDeviation}%` }}></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <span>Semantic Consistency</span>
-                    <span>{data.metrics.semanticConsistency}%</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
-                    <div className="h-full bg-error" style={{ width: `${data.metrics.semanticConsistency}%` }}></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1.5">
-                    <span>Authority Alignment</span>
-                    <span>{data.metrics.authorityAlignment}%</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
-                    <div className="h-full bg-error" style={{ width: `${data.metrics.authorityAlignment}%` }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Analysis Detail Grid */}
-      <div className="mb-12 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {/* Text Analysis Card */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/10 group hover:border-primary/20 transition-all">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-            <FileText className="text-primary w-6 h-6" />
-          </div>
-          <h3 className="text-lg font-bold mb-2">Text Analysis</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-4 py-2 border-b border-outline-variant/10">
-              <span className="text-sm text-secondary">Sentiment</span>
-              <span className="text-xs font-bold px-2 py-0.5 bg-error-container text-error rounded">{data.textAnalysis.sentiment}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4 py-2 border-b border-outline-variant/10">
-              <span className="text-sm text-secondary">Clickbait Score</span>
-              <span className="text-xs font-bold px-2 py-0.5 bg-error-container text-error rounded">{data.textAnalysis.clickbaitScore} / 10</span>
-            </div>
-            <div className="flex items-center justify-between gap-4 py-2">
-              <span className="text-sm text-secondary">AI Authored</span>
-              <span className="text-xs font-bold px-2 py-0.5 bg-surface-container-high text-on-surface-variant rounded">
-                {data.textAnalysis.aiAuthored.isLikely ? 'Likely' : 'Unlikely'} ({data.textAnalysis.aiAuthored.probability}%)
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Image Analysis Card */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/10 group hover:border-primary/20 transition-all">
-          <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-            <Image className="text-secondary w-6 h-6" />
-          </div>
-          <h3 className="text-lg font-bold mb-2">Image Forensics</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-4 py-2 border-b border-outline-variant/10">
-              <span className="text-sm text-secondary">Manipulation</span>
-              <span className="text-xs font-bold px-2 py-0.5 bg-error-container text-error rounded">
-                {data.imageForensics.manipulation.charAt(0).toUpperCase() + data.imageForensics.manipulation.slice(1)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-4 py-2 border-b border-outline-variant/10">
-              <span className="text-sm text-secondary">ELA Result</span>
-              <span className="text-xs font-bold px-2 py-0.5 bg-surface-container-high text-on-surface-variant rounded">{data.imageForensics.elaResult}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4 py-2">
-              <span className="text-sm text-secondary">Origin</span>
-              <span className="text-xs font-bold px-2 py-0.5 bg-surface-container-high text-on-surface-variant rounded">{data.imageForensics.origin}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Source Credibility Card */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/10 group hover:border-primary/20 transition-all">
-          <div className="w-12 h-12 rounded-xl bg-tertiary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-            <ShieldCheck className="text-tertiary w-6 h-6" />
-          </div>
-          <h3 className="text-lg font-bold mb-2">Domain Trust</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-4 py-2 border-b border-outline-variant/10">
-              <span className="text-sm text-secondary">Blacklist Status</span>
-              <span className="text-xs font-bold px-2 py-0.5 bg-error-container text-error rounded">
-                {data.domainTrust.blacklistStatus.charAt(0).toUpperCase() + data.domainTrust.blacklistStatus.slice(1)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-4 py-2 border-b border-outline-variant/10">
-              <span className="text-sm text-secondary">Domain Age</span>
-              <span className="text-xs font-bold px-2 py-0.5 bg-surface-container-high text-on-surface-variant rounded">{data.domainTrust.domainAge}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4 py-2">
-              <span className="text-sm text-secondary">IP Location</span>
-              <span className="text-xs font-bold px-2 py-0.5 bg-surface-container-high text-on-surface-variant rounded">{data.domainTrust.ipLocation}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {hasRealAnalysis && (
-        <section className="mb-12 space-y-6">
-          <div className="flex items-center gap-3">
-            <FileText className="w-6 h-6 text-primary" />
-            <div>
-              <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Extracted Text</h2>
-              <p className="text-secondary text-sm">
-                {isUrlAnalysis
-                  ? 'Article text scraped from the provided URL is shown below.'
-                  : 'OCR output from the uploaded image is shown below.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <article className="rounded-3xl border border-outline-variant/10 bg-white p-5 shadow-sm sm:p-6 xl:col-span-2">
-              <div className="flex flex-wrap items-center gap-3 mb-4 text-xs font-bold uppercase tracking-[0.2em] text-secondary">
-                <span>{methodLabel}</span>
-                {!isUrlAnalysis && <span>{analysisData?.ocr_region_count ?? 0} regions</span>}
-                {isUrlAnalysis && resolvedUrl && <span>web article</span>}
-                <span>{analysisData?.processing_time_sec?.toFixed(2) ?? '0.00'}s</span>
-              </div>
-
-              {headline && (
-                <div className="mb-5">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-secondary mb-2">Headline</p>
-                  <h3 className="text-xl font-bold leading-tight text-on-surface sm:text-2xl">{headline}</h3>
-                </div>
+                ))
+              ) : (
+                <p className="text-sm text-secondary">No additional findings were returned for this analysis.</p>
               )}
-
-              {body && (
-                <div className="mb-5">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-secondary mb-2">Body</p>
-                  <p className="whitespace-pre-wrap text-sm leading-7 text-on-surface md:text-base">{body}</p>
-                </div>
-              )}
-
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-secondary mb-2">
-                  {isUrlAnalysis ? 'Full Extracted Text' : 'Full OCR Text'}
-                </p>
-                <div className="max-h-80 overflow-y-auto rounded-2xl border border-outline-variant/10 bg-surface-container-low p-4 sm:p-5">
-                  <p className="whitespace-pre-wrap break-words text-sm leading-7 text-on-surface md:text-base">
-                    {extractedText}
-                  </p>
-                </div>
-              </div>
-            </article>
-
-            <div className="space-y-6">
-              <article className="rounded-3xl border border-outline-variant/10 bg-surface-container-low p-5 sm:p-6">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-secondary mb-4">
-                  {isUrlAnalysis ? 'Source Metadata' : 'Image Metadata'}
-                </p>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between gap-4">
-                    <span className="text-secondary">{isUrlAnalysis ? 'Method' : 'Image Type'}</span>
-                    <span className="break-words text-right font-semibold text-on-surface">
-                      {isUrlAnalysis ? methodLabel : (analysisData?.image_type || 'unknown')}
-                    </span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-secondary">Source</span>
-                    <span className="font-semibold text-on-surface text-right">{source || 'Not identified'}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-secondary">{isUrlAnalysis ? 'URL' : 'Caption'}</span>
-                    <span className="font-semibold text-on-surface text-right break-all">
-                      {isUrlAnalysis ? (resolvedUrl || 'Not available') : (caption || 'Not generated')}
-                    </span>
-                  </div>
-                </div>
-              </article>
-
-              <article className="rounded-3xl border border-outline-variant/10 bg-white p-5 shadow-sm sm:p-6">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-secondary mb-4">Detected Entities</p>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm font-semibold text-on-surface mb-2">People</p>
-                    <p className="text-sm text-secondary">{people.join(', ') || 'None detected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-on-surface mb-2">Organizations</p>
-                    <p className="text-sm text-secondary">{organizations.join(', ') || 'None detected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-on-surface mb-2">Locations</p>
-                    <p className="text-sm text-secondary">{locations.join(', ') || 'None detected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-on-surface mb-2">Dates</p>
-                    <p className="text-sm text-secondary">{dates.join(', ') || 'None detected'}</p>
-                  </div>
-                </div>
-              </article>
-
-              <article className="rounded-3xl bg-on-surface p-5 text-white sm:p-6">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/50 mb-3">Suspicious Elements</p>
-                <div className="space-y-3">
-                  {(suspiciousElements.length ? suspiciousElements : ['No suspicious elements detected']).map((item) => (
-                    <div key={item} className="rounded-2xl bg-white/8 px-4 py-3 text-sm leading-6">
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </article>
             </div>
           </div>
         </section>
-      )}
+      </div>
+
+      <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <section className="rounded-2xl border border-outline-variant/10 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <FileText className="h-5 w-5 text-primary" />
+            <h3 className="text-lg font-bold text-on-surface">Content</h3>
+          </div>
+          <div className="space-y-2 text-sm text-secondary">
+            <p><span className="font-semibold text-on-surface">Words:</span> {body.split(/\s+/).filter(Boolean).length}</p>
+            <p><span className="font-semibold text-on-surface">Source:</span> {source || 'Not detected'}</p>
+            <p><span className="font-semibold text-on-surface">Suspicious flags:</span> {suspiciousElements.length}</p>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-outline-variant/10 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            {inputType === 'url' ? <Globe className="h-5 w-5 text-primary" /> : <ImageIcon className="h-5 w-5 text-primary" />}
+            <h3 className="text-lg font-bold text-on-surface">Input details</h3>
+          </div>
+          <div className="space-y-2 text-sm text-secondary">
+            <p><span className="font-semibold text-on-surface">Type:</span> {inputType}</p>
+            {resolvedUrl ? <p><span className="font-semibold text-on-surface">URL:</span> {resolvedUrl}</p> : null}
+            {caption ? <p><span className="font-semibold text-on-surface">Caption:</span> {caption}</p> : null}
+            {analysisData.ocr_region_count ? <p><span className="font-semibold text-on-surface">OCR regions:</span> {analysisData.ocr_region_count}</p> : null}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-outline-variant/10 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <ScanText className="h-5 w-5 text-primary" />
+            <h3 className="text-lg font-bold text-on-surface">Entities</h3>
+          </div>
+          <div className="space-y-3 text-sm text-secondary">
+            <p><span className="font-semibold text-on-surface">People:</span> {people.join(', ') || 'None'}</p>
+            <p><span className="font-semibold text-on-surface">Organizations:</span> {organizations.join(', ') || 'None'}</p>
+            <p><span className="font-semibold text-on-surface">Locations:</span> {locations.join(', ') || 'None'}</p>
+            <p><span className="font-semibold text-on-surface">Dates:</span> {dates.join(', ') || 'None'}</p>
+          </div>
+        </section>
+      </div>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <article className="rounded-3xl border border-outline-variant/10 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-on-surface">Extracted text</h2>
+          <p className="mt-2 text-sm leading-7 text-secondary whitespace-pre-wrap">
+            {body || extractedText || 'No text content was extracted.'}
+          </p>
+        </article>
+
+        <article className="rounded-3xl border border-outline-variant/10 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-bold text-on-surface">Model metadata</h2>
+          <div className="mt-4 space-y-3 text-sm text-secondary">
+            <p><span className="font-semibold text-on-surface">Raw score:</span> {detection?.raw_score ?? 0}</p>
+            <p><span className="font-semibold text-on-surface">Confidence band:</span> {confidence}</p>
+            <p><span className="font-semibold text-on-surface">Primary label:</span> {detection?.verdict_label || verdictUi.label}</p>
+          </div>
+        </article>
+      </section>
     </div>
   );
 });

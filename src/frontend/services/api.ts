@@ -4,6 +4,18 @@
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001';
 
+export interface DetectionResult {
+  verdict: 'likely_original' | 'unverified' | 'likely_fake_false';
+  verdict_label: string;
+  raw_score: number;
+  fake_probability: number;
+  original_probability: number;
+  confidence: 'low' | 'medium' | 'high';
+  confidence_score: number;
+  summary: string;
+  findings: string[];
+}
+
 export interface AnalysisResult {
   combined_text: string;
   headline: string;
@@ -21,8 +33,9 @@ export interface AnalysisResult {
   caption: string;
   processing_time_sec: number;
   raw_ocr_text: string;
-  input_type?: 'image' | 'url';
+  input_type?: 'text' | 'image' | 'url';
   url?: string;
+  detection: DetectionResult;
 }
 
 export interface AnalyzeImageResponse {
@@ -35,6 +48,12 @@ export interface AnalyzeImageResponse {
 export interface AnalyzeUrlResponse {
   success: boolean;
   url: string;
+  result: AnalysisResult;
+  error?: string;
+}
+
+export interface AnalyzeTextResponse {
+  success: boolean;
   result: AnalysisResult;
   error?: string;
 }
@@ -66,6 +85,23 @@ export async function analyzeUrl(url: string): Promise<AnalyzeUrlResponse> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ url }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function analyzeText(text: string): Promise<AnalyzeTextResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/analyze-text`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text }),
   });
 
   if (!response.ok) {

@@ -91,6 +91,35 @@ app.post('/api/analyze-url', async (req, res) => {
   }
 });
 
+app.post('/api/analyze-text', async (req, res) => {
+  const submittedText = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+
+  if (!submittedText) {
+    return res.status(400).json({ error: 'Text content is required' });
+  }
+
+  const pythonScript = path.join(projectRoot, 'src', 'ml', 'text', 'analyze_text.py');
+
+  try {
+    const result = await runPythonCommand([
+      pythonScript,
+      '--text', submittedText,
+      '--format', 'json',
+    ]);
+
+    res.json({
+      success: true,
+      result,
+    });
+  } catch (error) {
+    console.error('[API] Error analyzing text:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to analyze text',
+    });
+  }
+});
+
 // Image analysis endpoint
 app.post('/api/analyze-image', upload.single('image'), async (req, res) => {
   if (!req.file) {
@@ -188,6 +217,7 @@ function runPythonCommand(pythonArgs) {
     const pythonProcess = spawn('python3', [
       ...pythonArgs
     ], {
+      cwd: projectRoot,
       env: {
         ...process.env,
         OBJC_DISABLE_INITIALIZE_FORK_SAFETY: 'YES',
@@ -257,6 +287,7 @@ app.use((error, req, res, next) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Factify API Server running on http://localhost:${PORT}`);
   console.log(`📡 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`📝 Text analysis endpoint: http://localhost:${PORT}/api/analyze-text`);
   console.log(`📤 Image upload endpoint: http://localhost:${PORT}/api/analyze-image`);
   console.log(`🔗 URL scrape endpoint: http://localhost:${PORT}/api/analyze-url\n`);
 });
