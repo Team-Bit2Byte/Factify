@@ -527,6 +527,7 @@ def assess_claim_verifiability(headline: str, body: str) -> tuple[float, List[st
     template_hits = count_phrase_hits(text, TEMPLATED_NARRATIVE_MARKERS)
     extraordinary_hits = count_phrase_hits(text, EXTRAORDINARY_CLAIM_MARKERS)
     conspiratorial_hits = count_phrase_hits(text, CONSPIRATORIAL_MARKERS)
+    verified_fact_hits = len(detect_verified_universal_facts(text))
     numeric_claims = len(re.findall(r"\b\d+\b", text))
     has_quotes = '"' in headline or '"' in body or bool(re.search(r"(?<![A-Za-z])'(?![A-Za-z])", headline + " " + body))
     weak_support = evidence_hits == 0 and attribution_hits == 0 and grounding_hits < 2

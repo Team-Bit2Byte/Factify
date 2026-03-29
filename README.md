@@ -105,3 +105,19 @@ curl http://localhost:3001/api/health
 - The Python `credibility_engine.py` path remains as a fallback if the bridge is unavailable.
 - The `.keras` model is active, but prediction quality would improve further if the original training tokenizer/vectorizer is added to the repo.
 - OCR quality still depends on local Python dependencies and, for Tesseract mode, a local Tesseract install.
+
+### URL Scraping Limitations
+
+Some news websites block automated access (Reuters, Bloomberg, WSJ, etc.) due to:
+
+- Bot detection systems
+- Paywalls and authentication
+- Rate limiting
+
+**Workarounds:**
+
+- Use the Text Analysis feature to paste article content directly
+- Try publicly accessible sites (BBC, Guardian, NPR)
+- For production: Consider official APIs or commercial scraping services
+
+The scraper uses multiple fallback methods (curl_cffi, requests, trafilatura, urllib) for best compatibility.

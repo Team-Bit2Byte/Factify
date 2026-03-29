@@ -297,7 +297,10 @@ def analyze_tweet_text(text: str) -> TweetModelAssessment:
         raw_model_probability = float(bundle["model"].predict_proba(feature_vector.reshape(1, -1))[0][1])
     threshold = float(metrics.get("calibrated_threshold") or bundle.get("decision_threshold") or 0.5)
     coverage_fraction = derived_feature_count / max(len(feature_names), 1)
-    probability = 0.5 + ((raw_model_probability - 0.5) * coverage_fraction)
+    # Less aggressive regularization - maintain more of the model's prediction even with partial coverage
+    # Use sqrt of coverage to reduce the penalty for missing features
+    coverage_weight = max(0.4, min(1.0, coverage_fraction ** 0.5))
+    probability = 0.5 + ((raw_model_probability - 0.5) * coverage_weight)
     fake_probability = int(round(probability * 100))
     original_probability = 100 - fake_probability
     coverage_ratio = round((derived_feature_count / max(len(feature_names), 1)) * 100, 2)

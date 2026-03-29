@@ -141,21 +141,27 @@ def predict_fake_probability(text: str) -> float:
 def _heuristic_risk(text: str, suspicious_elements: List[str], source: str) -> float:
     lowered_source = (source or "").strip().lower()
     word_count = len((text or "").split())
-    risk = 0.15
+    # Start with neutral baseline instead of fixed 0.15
+    risk = 0.0
 
-    risk += min(0.4, len(suspicious_elements) * 0.18)
+    # Suspicious elements are strong signals
+    risk += min(0.5, len(suspicious_elements) * 0.22)
 
-    if word_count < 25:
-        risk += 0.12
-    elif word_count > 120:
-        risk -= 0.03
+    # Word count adjustments - more nuanced
+    if word_count < 15:
+        risk += 0.18
+    elif word_count < 30:
+        risk += 0.08
+    elif word_count > 150:
+        risk -= 0.06
 
-    if not lowered_source or lowered_source == "none":
-        risk += 0.15
+    # Source credibility has significant impact
+    if not lowered_source or lowered_source == "none" or lowered_source in {"user provided text", "unknown source"}:
+        risk += 0.08  # Reduced penalty for unknown source
     elif any(name in lowered_source for name in REPUTABLE_SOURCES):
-        risk -= 0.18
+        risk -= 0.25  # Stronger bonus for reputable sources
     else:
-        risk += 0.04
+        risk += 0.03
 
     return max(0.0, min(1.0, risk))
 
@@ -164,7 +170,11 @@ def classify_text(text: str, suspicious_elements: List[str] | None = None, sourc
     suspicious_elements = suspicious_elements or []
     raw_score = predict_fake_probability(text)
     heuristic_score = _heuristic_risk(text, suspicious_elements, source)
-    calibrated_score = (raw_score * 0.45) + (heuristic_score * 0.55)
+    
+    # The LSTM model has learned spurious patterns and can't be fully trusted
+    # Weight the heuristics more heavily (70%) vs ML model (30%)
+    # This prevents the model from incorrectly flagging credible news
+    calibrated_score = (raw_score * 0.30) + (heuristic_score * 0.70)
     lowered_source = (source or "").strip().lower()
     word_count = len((text or "").split())
 
@@ -243,9 +253,11 @@ def classify_with_algorithm_score(
 ) -> DetectionResult:
     base = classify_text(text, suspicious_elements, source)
     algorithm_fake_probability = int(round(100 - max(0.0, min(100.0, algorithm_score))))
-    blended_fake_probability = int(round((base.fake_probability * 0.55) + (algorithm_fake_probability * 0.45)))
+    # Trust the deterministic algorithm much more than the flawed LSTM model
+    # Algorithm: 70%, Base (which already blends LSTM+heuristic): 30%
+    blended_fake_probability = int(round((base.fake_probability * 0.30) + (algorithm_fake_probability * 0.70)))
     blended_original_probability = 100 - blended_fake_probability
-    confidence_score = int(round((base.confidence_score * 0.6) + (abs(algorithm_score - 50.0) * 0.8)))
+    confidence_score = int(round((base.confidence_score * 0.4) + (abs(algorithm_score - 50.0) * 1.2)))
 
     if confidence_score >= 70:
         confidence = "high"

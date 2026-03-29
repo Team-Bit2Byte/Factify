@@ -126,6 +126,11 @@ def _blend_text_detection(base_detection: DetectionResult, tweet_model: dict) ->
 
     coverage_ratio = float(tweet_model.get("coverage_ratio") or 0.0)
     tweet_confidence = float(tweet_model.get("confidence_score") or 0.0)
+    
+    # If coverage is very low (<15%), dramatically reduce tweet model influence
+    if coverage_ratio < 15.0:
+        return base_detection
+    
     coverage_factor = min(1.0, coverage_ratio / 100.0)
     confidence_factor = min(1.0, tweet_confidence / 100.0)
     tweet_weight = min(0.18, 0.05 + (coverage_factor * confidence_factor * 0.9))
